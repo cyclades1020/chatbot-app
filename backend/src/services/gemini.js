@@ -158,7 +158,20 @@ ${userQuery}
 
 **請回答（使用與使用者問題相同的語言，簡潔回答）：**`;
 
-    const result = await model.generateContent(prompt);
+    // 使用重試機制處理 API 請求
+    const result = await retryWithBackoff(
+      async () => {
+        const result = await model.generateContent(prompt);
+        return result;
+      },
+      {
+        maxRetries: 2, // 一般對話重試次數較少
+        initialDelay: 2000,
+        maxDelay: 8000,
+        backoffMultiplier: 2
+      }
+    );
+
     const response = await result.response;
     const answer = response.text();
 
@@ -214,7 +227,20 @@ ${query}
 
 **請只返回同義詞和相關詞，用空格分隔，不要其他說明：**`;
 
-    const result = await model.generateContent(prompt);
+    // 使用重試機制處理 API 請求（語義擴展請求較短，重試次數較少）
+    const result = await retryWithBackoff(
+      async () => {
+        const result = await model.generateContent(prompt);
+        return result;
+      },
+      {
+        maxRetries: 2,
+        initialDelay: 1500,
+        maxDelay: 6000,
+        backoffMultiplier: 2
+      }
+    );
+
     const response = await result.response;
     const expanded = response.text().trim();
     
