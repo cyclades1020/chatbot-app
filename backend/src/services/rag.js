@@ -122,13 +122,7 @@ export async function processQuery(query) {
     
     return {
       answer,
-      sources: useFullKnowledgeBase 
-        ? [{ text: '完整知識庫搜尋', index: -1, score: 0 }] // 使用完整知識庫時不顯示來源
-        : relevantChunks.map(chunk => ({
-            index: chunk.index,
-            text: chunk.text.substring(0, 200) + '...', // 只顯示前 200 字元
-            score: chunk.score
-          })),
+      sources: [], // 不顯示參考資料來源
       mode: useFullKnowledgeBase ? 'full_rag' : 'rag' // 標記為完整 RAG 或精準 RAG
     };
   } catch (error) {
