@@ -1,8 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 
 function ChatMessage({ message }) {
-  const [showSources, setShowSources] = useState(false);
-
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('zh-TW', {
       hour: '2-digit',
