@@ -68,21 +68,45 @@ ${userQuery}
 
     return answer;
   } catch (error) {
-    console.error('Gemini API 錯誤:', error);
+    // 詳細記錄錯誤資訊以便診斷
+    console.error('Gemini API 錯誤詳情:', {
+      message: error.message,
+      code: error.code,
+      status: error.status,
+      statusCode: error.statusCode,
+      response: error.response?.data || error.response,
+      stack: error.stack?.split('\n').slice(0, 3).join('\n')
+    });
     
-    // 如果是配額錯誤，自動切換到 Ollama
-    if (error.message && (error.message.includes('quota') || error.message.includes('429'))) {
+    // 檢查錯誤類型
+    const errorMessage = error.message?.toLowerCase() || '';
+    const errorCode = error.code || error.statusCode || error.status;
+    
+    // 速率限制（Rate Limit）- 429 錯誤碼，即使付費也可能遇到
+    if (errorCode === 429 || errorMessage.includes('rate limit') || errorMessage.includes('too many requests')) {
+      console.log('⚠️  Gemini API 速率限制（Rate Limit），請稍後再試或檢查付費方案限制');
+      // 速率限制通常是暫時的，不應該切換到 Ollama，而是應該重試或告知用戶
+      throw new Error('RATE_LIMIT_EXCEEDED');
+    }
+    
+    // 真正的配額錯誤（Quota Exceeded）- 通常只有免費方案才會遇到
+    if (errorMessage.includes('quota exceeded') || errorMessage.includes('quota') && !errorMessage.includes('rate')) {
       console.log('🔄 Gemini 配額已用完，自動切換到 Ollama...');
       try {
-        // Ollama 會自動處理完整知識庫或精準檢索的內容
         return await generateAnswerWithOllama(userQuery, contextText);
       } catch (ollamaError) {
-        // 如果 Ollama 也失敗，返回一個標記，讓上層處理備援方案
         throw new Error('AI_SERVICE_UNAVAILABLE');
       }
     }
     
-    throw new Error(`生成回答時發生錯誤: ${error.message}`);
+    // API Key 相關錯誤
+    if (errorMessage.includes('api key') || errorMessage.includes('authentication') || errorMessage.includes('401') || errorCode === 401) {
+      console.error('❌ Gemini API Key 錯誤，請檢查 GEMINI_API_KEY 環境變數是否正確設定');
+      throw new Error('API_KEY_INVALID');
+    }
+    
+    // 其他錯誤直接拋出，讓上層處理
+    throw new Error(`Gemini API 錯誤: ${error.message || '未知錯誤'} (錯誤碼: ${errorCode || 'N/A'})`);
   }
 }
 
@@ -211,4 +235,5 @@ export async function testGeminiConnection() {
     return false;
   }
 }
+
 
