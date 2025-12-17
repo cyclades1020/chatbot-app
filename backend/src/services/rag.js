@@ -75,45 +75,27 @@ export function getKnowledgeBaseStatus() {
  * @returns {Promise<{answer: string, sources: Array}>}
  */
 export async function processQuery(query) {
-  // 如果沒有知識庫內容，使用一般對話模式
+  // 如果沒有知識庫內容，根據規則回應
   if (textChunks.length === 0) {
-    try {
-      const answer = await generateGeneralChat(query);
-      return {
-        answer,
-        sources: [],
-        mode: 'general' // 標記為一般對話模式
-      };
-    } catch (error) {
-      console.error('一般對話處理錯誤:', error);
-      return {
-        answer: `處理您的問題時發生錯誤: ${error.message}`,
-        sources: [],
-        mode: 'general'
-      };
-    }
+    // 規則：如果知識庫為空，回應特定訊息
+    return {
+      answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。',
+      sources: [],
+      mode: 'no_knowledge_base' // 標記為知識庫為空
+    };
   }
 
   // 檢索相關文本區塊
   const relevantChunks = retrieveRelevantChunks(query, textChunks, 3);
 
-  // 如果找不到相關內容，自動切換到一般對話模式
+  // 如果找不到相關內容，根據規則回應
   if (relevantChunks.length === 0) {
-    try {
-      const answer = await generateGeneralChat(query);
-      return {
-        answer,
-        sources: [],
-        mode: 'general' // 標記為一般對話模式（知識庫無相關內容時）
-      };
-    } catch (error) {
-      console.error('一般對話處理錯誤:', error);
-      return {
-        answer: `處理您的問題時發生錯誤: ${error.message}`,
-        sources: [],
-        mode: 'general'
-      };
-    }
+    // 規則：如果關鍵字無法觸發從資料庫中取得答案，回應特定訊息
+    return {
+      answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。',
+      sources: [],
+      mode: 'no_match' // 標記為知識庫無匹配內容
+    };
   }
 
   // 組合相關文本作為上下文
