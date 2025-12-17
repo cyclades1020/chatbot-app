@@ -19,9 +19,10 @@ if (apiKey) {
  * 使用 Gemini 生成回答
  * @param {string} userQuery - 使用者問題
  * @param {string} contextText - 從文本中檢索到的相關內容
+ * @param {boolean} useFullKnowledgeBase - 是否使用整個知識庫（用於優化提示詞）
  * @returns {Promise<string>} AI 生成的回答
  */
-export async function generateAnswer(userQuery, contextText) {
+export async function generateAnswer(userQuery, contextText, useFullKnowledgeBase = false) {
   if (!genAI) {
     throw new Error('Gemini API 未設定，請檢查 GEMINI_API_KEY 環境變數');
   }
@@ -36,16 +37,25 @@ export async function generateAnswer(userQuery, contextText) {
       }
     });
 
+    // 根據是否使用整個知識庫調整提示詞
+    const contextInstruction = useFullKnowledgeBase 
+      ? `**提供的完整知識庫內容：**
+${contextText}
+
+**重要**：請仔細搜尋整個知識庫，找出與使用者問題相關的資訊。即使問題的用詞與知識庫不完全相同，也要理解語義相似性（例如：「營業時間」和「服務時間」是同一個意思）。`
+      : `**提供的文本內容：**
+${contextText}`;
+
     const prompt = `你是一個客服聊天機器人。請根據以下提供的文本內容回答使用者的問題。
 
 **重要規則：**
 1. **嚴格限制**：只能根據提供的文本內容回答問題，絕對不能編造或推測文本中沒有的資訊
 2. **回答要求**：回答要簡潔、友善且專業（盡量簡短，不超過 3 句話）
 3. **語言要求**：請自動識別使用者問題使用的語言，並使用相同的語言回覆
-4. **無相關資訊處理**：如果文本內容中沒有相關資訊，請明確告知使用者「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。」
+4. **語義理解**：請理解問題的語義，即使用詞不完全相同也要找出相關資訊（例如：「營業時間」=「服務時間」，「退貨政策」=「退貨規定」）
+5. **無相關資訊處理**：如果文本內容中完全沒有相關資訊，請明確告知使用者「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。」
 
-**提供的文本內容：**
-${contextText}
+${contextInstruction}
 
 **使用者問題：**
 ${userQuery}
@@ -64,6 +74,7 @@ ${userQuery}
     if (error.message && (error.message.includes('quota') || error.message.includes('429'))) {
       console.log('🔄 Gemini 配額已用完，自動切換到 Ollama...');
       try {
+        // Ollama 會自動處理完整知識庫或精準檢索的內容
         return await generateAnswerWithOllama(userQuery, contextText);
       } catch (ollamaError) {
         throw new Error(`Gemini 配額用完，且 Ollama 也發生錯誤: ${ollamaError.message}`);

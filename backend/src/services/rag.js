@@ -98,33 +98,38 @@ export async function processQuery(query) {
   // 第二階段：使用擴展後的查詢進行檢索
   const relevantChunks = retrieveRelevantChunks(expandedQuery, textChunks, 5); // 增加檢索數量以提高準確度
 
-  // 如果找不到相關內容，根據規則回應
+  // 決定使用哪種策略
+  let contextText;
+  let useFullKnowledgeBase = false;
+  
   if (relevantChunks.length === 0) {
-    // 規則：如果關鍵字無法觸發從資料庫中取得答案，回應特定訊息
-    return {
-      answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。',
-      sources: [],
-      mode: 'no_match' // 標記為知識庫無匹配內容
-    };
+    // 策略 1：如果精準檢索找不到，使用整個知識庫讓 AI 自行搜尋
+    // 這會消耗更多 token，但能提高找到答案的機率
+    // 知識庫目前約 1200 字元，加上 prompt 約 200 字元，總共約 1400 tokens（中文約 1 token = 1 字元）
+    console.log('⚠️  精準檢索未找到結果，使用整個知識庫進行 AI 搜尋');
+    contextText = originalText;
+    useFullKnowledgeBase = true;
+  } else {
+    // 策略 2：使用精準檢索的結果（節省 token）
+    contextText = relevantChunks
+      .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
+      .join('\n\n---\n\n');
   }
-
-  // 組合相關文本作為上下文
-  const contextText = relevantChunks
-    .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
-    .join('\n\n---\n\n');
 
   // 使用 Gemini 生成回答（RAG 模式）
   try {
-    const answer = await generateAnswer(query, contextText);
+    const answer = await generateAnswer(query, contextText, useFullKnowledgeBase);
     
     return {
       answer,
-      sources: relevantChunks.map(chunk => ({
-        index: chunk.index,
-        text: chunk.text.substring(0, 200) + '...', // 只顯示前 200 字元
-        score: chunk.score
-      })),
-      mode: 'rag' // 標記為 RAG 模式
+      sources: useFullKnowledgeBase 
+        ? [{ text: '完整知識庫搜尋', index: -1, score: 0 }] // 使用完整知識庫時不顯示來源
+        : relevantChunks.map(chunk => ({
+            index: chunk.index,
+            text: chunk.text.substring(0, 200) + '...', // 只顯示前 200 字元
+            score: chunk.score
+          })),
+      mode: useFullKnowledgeBase ? 'full_rag' : 'rag' // 標記為完整 RAG 或精準 RAG
     };
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
