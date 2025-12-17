@@ -34,6 +34,7 @@ function ChatWidget() {
   const inputRef = useRef(null);
   const widgetRef = useRef(null);
   const resizeRef = useRef({ startX: 0, startY: 0, startWidth: 0, startHeight: 0 });
+  const abortControllerRef = useRef(null); // 用於追蹤當前的請求控制器
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -42,6 +43,15 @@ function ChatWidget() {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // 組件卸載時清理未完成的請求
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return;
@@ -56,10 +66,21 @@ function ChatWidget() {
     setInputValue('');
     setIsLoading(true);
 
+    // 如果已有進行中的請求，先中止它
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // 建立新的請求控制器
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
-      // 設定 60 秒超時
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      // 設定 120 秒超時（因為重試機制可能需要更長時間）
+      const timeoutId = setTimeout(() => {
+        console.warn('請求超時（120秒），中止請求');
+        controller.abort();
+      }, 120000); // 增加到 120 秒
 
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
@@ -71,6 +92,7 @@ function ChatWidget() {
       });
 
       clearTimeout(timeoutId);
+      abortControllerRef.current = null; // 請求完成，清除引用
 
       // 檢查響應狀態
       if (!response.ok) {
@@ -90,6 +112,9 @@ function ChatWidget() {
         throw new Error(data.error || '處理訊息失敗');
       }
     } catch (error) {
+      // 清除控制器引用
+      abortControllerRef.current = null;
+      
       console.error('發送訊息錯誤:', error);
       console.error('錯誤詳情:', {
         name: error.name,
@@ -102,7 +127,12 @@ function ChatWidget() {
       let errorMessage = '處理您的訊息時發生錯誤';
       
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
-        errorMessage = '請求超時，請稍後再試。如果持續發生，可能是 AI 模型處理時間較長。';
+        // 區分超時和其他中止原因
+        if (error.message.includes('timeout') || error.message.includes('超時')) {
+          errorMessage = '請求超時（超過 120 秒），請稍後再試。AI 處理可能需要較長時間。';
+        } else {
+          errorMessage = '請求被中止。如果持續發生，請重新整理頁面後再試。';
+        }
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         errorMessage = '無法連接到伺服器，請確認後端服務是否正在運行。';
       } else if (error.message.includes('504')) {
