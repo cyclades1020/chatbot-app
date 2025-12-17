@@ -47,6 +47,18 @@ app.use(express.urlencoded({ extended: true }));
 // 靜態檔案服務（用於提供上傳的文本檔案）
 app.use('/uploads', express.static(join(__dirname, '../data/uploads')));
 
+// 錯誤處理中間件（在路由之前）
+app.use((err, req, res, next) => {
+  // 處理 CORS 錯誤
+  if (err.message && err.message.includes('CORS')) {
+    return res.status(403).json({
+      error: 'CORS 錯誤',
+      message: err.message
+    });
+  }
+  next(err);
+});
+
 // API 路由
 app.use('/api', apiRoutes);
 app.use('/api/upload', uploadRoutes);
