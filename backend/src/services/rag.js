@@ -85,8 +85,18 @@ export async function processQuery(query) {
     };
   }
 
-  // 檢索相關文本區塊
-  const relevantChunks = retrieveRelevantChunks(query, textChunks, 3);
+  // 使用 AI 語義理解進行檢索（兩階段檢索）
+  // 第一階段：使用 AI 理解問題的語義，擴展關鍵字
+  let expandedQuery = query;
+  try {
+    expandedQuery = await expandQueryWithAI(query);
+  } catch (error) {
+    console.warn('AI 語義擴展失敗，使用原始查詢:', error.message);
+    // 如果 AI 擴展失敗，繼續使用原始查詢
+  }
+
+  // 第二階段：使用擴展後的查詢進行檢索
+  const relevantChunks = retrieveRelevantChunks(expandedQuery, textChunks, 5); // 增加檢索數量以提高準確度
 
   // 如果找不到相關內容，根據規則回應
   if (relevantChunks.length === 0) {
