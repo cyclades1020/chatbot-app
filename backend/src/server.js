@@ -30,13 +30,18 @@ console.log('CORS 設定:', {
 
 app.use(cors({
   origin: (origin, callback) => {
+    // 記錄所有 CORS 請求（用於調試）
+    console.log(`🔍 CORS 請求 - origin: ${origin}, isWildcard: ${isWildcard}`);
+    
     // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
     if (!origin) {
+      console.log('✅ CORS 允許（無 origin）');
       return callback(null, true);
     }
     
     // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
     if (isWildcard) {
+      console.log('✅ CORS 允許（wildcard）');
       return callback(null, true);
     }
     
@@ -45,6 +50,7 @@ app.use(cors({
     const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase());
     
     if (isAllowed) {
+      console.log('✅ CORS 允許（在清單中）');
       return callback(null, true);
     }
     
