@@ -70,9 +70,9 @@ ${userQuery}
         return result;
       },
       {
-        maxRetries: 3,
-        initialDelay: 2000, // 初始延遲 2 秒
-        maxDelay: 10000,    // 最大延遲 10 秒
+        maxRetries: 5, // 增加重試次數
+        initialDelay: 5000, // 初始延遲 5 秒
+        maxDelay: 30000,    // 最大延遲 30 秒
         backoffMultiplier: 2
       }
     );
@@ -165,9 +165,9 @@ ${userQuery}
         return result;
       },
       {
-        maxRetries: 2, // 一般對話重試次數較少
-        initialDelay: 2000,
-        maxDelay: 8000,
+        maxRetries: 4, // 增加重試次數
+        initialDelay: 4000, // 增加初始延遲
+        maxDelay: 20000,    // 增加最大延遲
         backoffMultiplier: 2
       }
     );

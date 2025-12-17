@@ -128,12 +128,14 @@ export async function processQuery(query) {
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
     
-    // 速率限制錯誤 - 告知用戶稍後再試
+    // 速率限制錯誤 - 使用備援方案而不是直接返回錯誤
     if (error.message === 'RATE_LIMIT_EXCEEDED') {
+      console.log('⚠️  速率限制錯誤，使用關鍵字匹配備援方案...');
+      const fallbackAnswer = generateFallbackAnswer(query, contextText);
       return {
-        answer: '目前服務使用量較高，請稍候幾秒後再試。如有緊急問題，請聯繫客服：0800-123-456。',
+        answer: fallbackAnswer + '\n\n（註：目前 AI 服務使用量較高，以上為基於知識庫的快速回答）',
         sources: [],
-        mode: 'rate_limit'
+        mode: 'rate_limit_fallback'
       };
     }
     

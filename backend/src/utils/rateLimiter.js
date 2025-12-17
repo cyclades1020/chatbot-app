@@ -6,8 +6,8 @@
 // 請求佇列：追蹤正在進行的請求
 let requestQueue = [];
 let activeRequests = 0;
-const MAX_CONCURRENT_REQUESTS = 2; // 最大同時請求數
-const MIN_REQUEST_INTERVAL = 1000; // 最小請求間隔（毫秒）
+const MAX_CONCURRENT_REQUESTS = 1; // 最大同時請求數（降低以避免速率限制）
+const MIN_REQUEST_INTERVAL = 2000; // 最小請求間隔（毫秒）- 增加到 2 秒
 let lastRequestTime = 0;
 
 /**
@@ -54,9 +54,9 @@ function releaseSlot() {
  */
 export async function retryWithBackoff(apiCall, options = {}) {
   const {
-    maxRetries = 3,
-    initialDelay = 1000,
-    maxDelay = 10000,
+    maxRetries = 5, // 增加重試次數
+    initialDelay = 3000, // 增加初始延遲到 3 秒
+    maxDelay = 30000, // 增加最大延遲到 30 秒
     backoffMultiplier = 2
   } = options;
 
