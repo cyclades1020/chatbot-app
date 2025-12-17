@@ -154,6 +154,8 @@ function ChatWidget() {
         isError: true
       }]);
     } finally {
+      // 確保清除控制器引用和 loading 狀態
+      abortControllerRef.current = null;
       setIsLoading(false);
       inputRef.current?.focus();
     }
