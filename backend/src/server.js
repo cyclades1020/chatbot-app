@@ -17,53 +17,51 @@ const PORT = process.env.PORT || 3001;
 // CORS 設定
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
 const isWildcard = allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*';
-const allowedOrigins = isWildcard 
-  ? [] // 如果是 wildcard，不需要處理 allowedOrigins
-  : (allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173']);
 
 // 記錄 CORS 設定（用於調試）
 console.log('CORS 設定:', {
   ALLOWED_ORIGINS: allowedOriginsEnv,
-  isWildcard: isWildcard,
-  allowedOrigins: allowedOrigins
+  isWildcard: isWildcard
 });
 
-app.use(cors({
-  origin: (origin, callback) => {
-    // 記錄所有 CORS 請求（用於調試）
-    console.log(`🔍 CORS 請求 - origin: ${origin}, isWildcard: ${isWildcard}`);
-    
-    // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
-    if (!origin) {
-      console.log('✅ CORS 允許（無 origin）');
-      return callback(null, true);
-    }
-    
-    // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
-    if (isWildcard) {
-      console.log('✅ CORS 允許（wildcard）');
-      return callback(null, true);
-    }
-    
-    // 檢查是否在允許清單中（不區分大小寫）
-    const normalizedOrigin = origin.trim();
-    const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase());
-    
-    if (isAllowed) {
-      console.log('✅ CORS 允許（在清單中）');
-      return callback(null, true);
-    }
-    
-    // 不允許的來源
-    console.log(`❌ CORS 拒絕來源: ${origin}`);
-    console.log(`   允許的來源:`, allowedOrigins);
-    console.log(`   ALLOWED_ORIGINS 環境變數:`, allowedOriginsEnv);
-    callback(new Error('不允許的 CORS 來源'));
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
+// 如果設定為 '*'，使用簡單的 CORS 配置（允許所有來源）
+if (isWildcard) {
+  console.log('✅ 使用 wildcard CORS 配置（允許所有來源）');
+  app.use(cors({
+    origin: true, // 允許所有來源
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+} else {
+  // 否則使用指定的來源清單
+  const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173'];
+  console.log('✅ 使用指定來源 CORS 配置:', allowedOrigins);
+  
+  app.use(cors({
+    origin: (origin, callback) => {
+      // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
+      if (!origin) {
+        return callback(null, true);
+      }
+      
+      // 檢查是否在允許清單中（不區分大小寫）
+      const normalizedOrigin = origin.trim();
+      const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase());
+      
+      if (isAllowed) {
+        return callback(null, true);
+      }
+      
+      // 不允許的來源
+      console.log(`❌ CORS 拒絕來源: ${origin}`);
+      callback(new Error('不允許的 CORS 來源'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
+}
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
