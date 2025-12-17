@@ -27,7 +27,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: process.env.VITE_API_URL || 'https://chatbot-app-production-9cd7.up.railway.app',
+        target: process.env.VITE_API_URL || 'https://chatbot-app-production-2ea5.up.railway.app',
         changeOrigin: true
       }
     }
