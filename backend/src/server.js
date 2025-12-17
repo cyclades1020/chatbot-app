@@ -39,9 +39,15 @@ console.log('CORS 設定:', {
 });
 
 // 如果設定為 '*'，使用簡單的 CORS 配置（允許所有來源）
+// 注意：如果使用 credentials，不能使用 *，必須明確指定來源
 if (isWildcard) {
   console.log('✅ 使用 wildcard CORS 配置（允許所有來源）');
-  app.use(cors());
+  // 不使用 credentials，因為 wildcard 與 credentials 不相容
+  app.use(cors({
+    origin: true, // 允許所有來源
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 } else {
   // 否則使用指定的來源清單
   const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || [...defaultVercelOrigins, ...localOrigins];
