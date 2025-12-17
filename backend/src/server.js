@@ -47,18 +47,6 @@ app.use(express.urlencoded({ extended: true }));
 // 靜態檔案服務（用於提供上傳的文本檔案）
 app.use('/uploads', express.static(join(__dirname, '../data/uploads')));
 
-// 錯誤處理中間件（在路由之前）
-app.use((err, req, res, next) => {
-  // 處理 CORS 錯誤
-  if (err.message && err.message.includes('CORS')) {
-    return res.status(403).json({
-      error: 'CORS 錯誤',
-      message: err.message
-    });
-  }
-  next(err);
-});
-
 // API 路由
 app.use('/api', apiRoutes);
 app.use('/api/upload', uploadRoutes);
@@ -81,6 +69,23 @@ app.get('/', (req, res) => {
 // 健康檢查
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: '服務運行中' });
+});
+
+// 錯誤處理中間件（必須在所有路由之後）
+app.use((err, req, res, next) => {
+  // 處理 CORS 錯誤
+  if (err.message && err.message.includes('CORS')) {
+    return res.status(403).json({
+      error: 'CORS 錯誤',
+      message: err.message
+    });
+  }
+  // 處理其他錯誤
+  console.error('伺服器錯誤:', err);
+  res.status(500).json({
+    error: '伺服器錯誤',
+    message: err.message
+  });
 });
 
 app.listen(PORT, () => {
