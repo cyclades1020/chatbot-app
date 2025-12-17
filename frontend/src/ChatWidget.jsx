@@ -91,13 +91,28 @@ function ChatWidget() {
       }
     } catch (error) {
       console.error('發送訊息錯誤:', error);
+      console.error('錯誤詳情:', {
+        name: error.name,
+        message: error.message,
+        status: error.status,
+        statusText: error.statusText
+      });
       
-      // 提供更詳細的錯誤訊息
+      // 提供更詳細的錯誤訊息（根據 HTTP 狀態碼）
       let errorMessage = '處理您的訊息時發生錯誤';
+      
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
         errorMessage = '請求超時，請稍後再試。如果持續發生，可能是 AI 模型處理時間較長。';
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         errorMessage = '無法連接到伺服器，請確認後端服務是否正在運行。';
+      } else if (error.message.includes('504')) {
+        errorMessage = '請求超時（504），後端處理時間過長。請稍後再試。';
+      } else if (error.message.includes('429')) {
+        errorMessage = '服務使用量較高，請稍候幾秒後再試。';
+      } else if (error.message.includes('500')) {
+        errorMessage = '伺服器內部錯誤（500），請聯繫技術支援。';
+      } else if (error.message.includes('403') || error.message.includes('401')) {
+        errorMessage = '認證錯誤（403/401），請聯繫技術支援檢查 API 設定。';
       } else if (error.message) {
         errorMessage = `處理您的訊息時發生錯誤：${error.message}`;
       }

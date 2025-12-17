@@ -35,7 +35,25 @@ export async function generateAnswer(userQuery, contextText, useFullKnowledgeBas
       generationConfig: {
         maxOutputTokens: 500, // 限制輸出長度以加快速度
         temperature: 0.7, // 降低溫度以加快速度
-      }
+      },
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: 'BLOCK_NONE'
+        },
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: 'BLOCK_NONE'
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        }
+      ]
     });
 
     // 根據是否使用整個知識庫調整提示詞
@@ -141,7 +159,25 @@ export async function generateGeneralChat(userQuery) {
       generationConfig: {
         maxOutputTokens: 300, // 限制輸出長度以加快速度
         temperature: 0.7,
-      }
+      },
+      safetySettings: [
+        {
+          category: 'HARM_CATEGORY_HARASSMENT',
+          threshold: 'BLOCK_NONE'
+        },
+        {
+          category: 'HARM_CATEGORY_HATE_SPEECH',
+          threshold: 'BLOCK_NONE'
+        },
+        {
+          category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        },
+        {
+          category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+          threshold: 'BLOCK_ONLY_HIGH'
+        }
+      ]
     });
 
     const prompt = `你是一個友善、專業的客服聊天機器人。請以自然、親切的方式回答使用者的問題。

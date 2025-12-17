@@ -127,6 +127,32 @@ export async function processQuery(query) {
     };
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
+    console.error('錯誤詳情:', {
+      message: error.message,
+      stack: error.stack?.split('\n').slice(0, 5).join('\n')
+    });
+    
+    // 安全過濾阻擋
+    if (error.message === 'SAFETY_FILTER_BLOCKED') {
+      console.log('⚠️  回應被安全設定阻擋，使用備援方案...');
+      const fallbackAnswer = generateFallbackAnswer(query, contextText);
+      return {
+        answer: fallbackAnswer,
+        sources: [],
+        mode: 'safety_fallback'
+      };
+    }
+    
+    // 空回應
+    if (error.message === 'EMPTY_RESPONSE') {
+      console.log('⚠️  API 回應為空，使用備援方案...');
+      const fallbackAnswer = generateFallbackAnswer(query, contextText);
+      return {
+        answer: fallbackAnswer,
+        sources: [],
+        mode: 'empty_response_fallback'
+      };
+    }
     
     // 速率限制錯誤 - 使用備援方案而不是直接返回錯誤
     if (error.message === 'RATE_LIMIT_EXCEEDED') {
