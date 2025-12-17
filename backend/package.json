@@ -1,0 +1,20 @@
+{
+  "name": "chatbot-backend",
+  "version": "1.0.0",
+  "description": "後端 API 服務",
+  "main": "src/server.js",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "@google/generative-ai": "^0.2.1",
+    "multer": "^1.4.5-lts.1",
+    "fs-extra": "^11.1.1"
+  }
+}
+
