@@ -15,7 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // CORS 設定
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'];
+const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || ['http://localhost:3000', 'http://localhost:5173'];
 app.use(cors({
   origin: (origin, callback) => {
     // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
@@ -24,16 +24,18 @@ app.use(cors({
     }
     
     // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
-    if (process.env.ALLOWED_ORIGINS === '*') {
+    if (process.env.ALLOWED_ORIGINS === '*' || process.env.ALLOWED_ORIGINS?.trim() === '*') {
       return callback(null, true);
     }
     
-    // 檢查是否在允許清單中
-    if (allowedOrigins.includes(origin)) {
+    // 檢查是否在允許清單中（不區分大小寫）
+    const normalizedOrigin = origin.trim();
+    if (allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase())) {
       return callback(null, true);
     }
     
     // 不允許的來源
+    console.log(`CORS 拒絕來源: ${origin}, 允許的來源:`, allowedOrigins);
     callback(new Error('不允許的 CORS 來源'));
   },
   credentials: true,
