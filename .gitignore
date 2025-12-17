@@ -13,7 +13,7 @@ frontend/build/
 
 # 資料檔案
 backend/data/uploads/
-backend/data/*.txt
+# 注意：knowledge_base.txt 和 example_knowledge_base.txt 需要被追蹤，所以不忽略
 
 # 日誌
 *.log
