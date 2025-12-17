@@ -2,11 +2,15 @@ import React, { useState } from 'react';
 
 // 支援環境變數和 widget 模式的 API URL
 const getApiUrl = () => {
+  let url = '';
   if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
-    return window.CHATBOT_API_URL;
+    url = window.CHATBOT_API_URL;
+  } else {
+    // 優先使用環境變數，如果沒有則使用 Railway 後端網址
+    url = import.meta.env.VITE_API_URL || 'https://chatbot-app-production-9cd7.up.railway.app';
   }
-  // 優先使用環境變數，如果沒有則使用 Railway 後端網址
-  return import.meta.env.VITE_API_URL || 'https://chatbot-app-production-9cd7.up.railway.app';
+  // 移除尾隨斜線，避免雙斜線問題
+  return url.replace(/\/+$/, '');
 };
 
 const API_URL = getApiUrl();
