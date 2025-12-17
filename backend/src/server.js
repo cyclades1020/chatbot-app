@@ -38,6 +38,21 @@ app.use('/uploads', express.static(join(__dirname, '../data/uploads')));
 app.use('/api', apiRoutes);
 app.use('/api/upload', uploadRoutes);
 
+// 根路徑 - 顯示服務資訊
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: '客服聊天機器人後端服務運行中',
+    version: '1.0.0',
+    endpoints: {
+      health: '/health',
+      chat: '/api/chat',
+      status: '/api/status',
+      upload: '/api/upload'
+    }
+  });
+});
+
 // 健康檢查
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', message: '服務運行中' });
