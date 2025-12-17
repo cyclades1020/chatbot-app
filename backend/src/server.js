@@ -16,13 +16,16 @@ const PORT = process.env.PORT || 3001;
 
 // CORS 設定
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
-const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173'];
+const isWildcard = allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*';
+const allowedOrigins = isWildcard 
+  ? [] // 如果是 wildcard，不需要處理 allowedOrigins
+  : (allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173']);
 
 // 記錄 CORS 設定（用於調試）
 console.log('CORS 設定:', {
   ALLOWED_ORIGINS: allowedOriginsEnv,
-  allowedOrigins: allowedOrigins,
-  isWildcard: allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*'
+  isWildcard: isWildcard,
+  allowedOrigins: allowedOrigins
 });
 
 app.use(cors({
@@ -33,7 +36,6 @@ app.use(cors({
     }
     
     // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
-    const isWildcard = allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*';
     if (isWildcard) {
       return callback(null, true);
     }
