@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { chunkText, retrieveRelevantChunks } from '../utils/textProcessor.js';
+import { chunkText, retrieveRelevantChunks, calculateRelevanceScore } from '../utils/textProcessor.js';
 import { generateAnswer, generateGeneralChat, expandQueryWithAI } from './gemini.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -128,21 +128,22 @@ export async function processQuery(query) {
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
     
-    // 如果錯誤訊息包含 Ollama 也失敗，才返回錯誤
-    // 否則 generateAnswer 應該已經自動切換到 Ollama 了
-    if (error.message && error.message.includes('Ollama 也發生錯誤')) {
+    // 如果 AI 服務都無法使用，使用簡單的關鍵字匹配備援方案
+    if (error.message === 'AI_SERVICE_UNAVAILABLE') {
+      console.log('⚠️  AI 服務無法使用，使用關鍵字匹配備援方案...');
+      const fallbackAnswer = generateFallbackAnswer(query, contextText);
       return {
-        answer: `處理您的問題時發生錯誤: ${error.message}`,
+        answer: fallbackAnswer,
         sources: [],
-        mode: 'rag'
+        mode: 'fallback'
       };
     }
     
-    // 如果還有其他錯誤，可能是 Ollama 也失敗了
+    // 其他錯誤返回友善的錯誤訊息
     return {
-      answer: `處理您的問題時發生錯誤: ${error.message}`,
+      answer: '不好意思，目前 AI 服務暫時無法使用，請稍後再試。如有緊急問題，請直接聯繫客服：0800-123-456。',
       sources: [],
-      mode: 'rag'
+      mode: 'error'
     };
   }
 }

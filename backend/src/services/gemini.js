@@ -77,7 +77,8 @@ ${userQuery}
         // Ollama 會自動處理完整知識庫或精準檢索的內容
         return await generateAnswerWithOllama(userQuery, contextText);
       } catch (ollamaError) {
-        throw new Error(`Gemini 配額用完，且 Ollama 也發生錯誤: ${ollamaError.message}`);
+        // 如果 Ollama 也失敗，返回一個標記，讓上層處理備援方案
+        throw new Error('AI_SERVICE_UNAVAILABLE');
       }
     }
     
