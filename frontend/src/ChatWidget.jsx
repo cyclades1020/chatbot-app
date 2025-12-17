@@ -75,42 +75,80 @@ function ChatWidget() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    try {
-      // 設定 120 秒超時（因為重試機制可能需要更長時間）
-      const timeoutId = setTimeout(() => {
-        console.warn('請求超時（120秒），中止請求');
-        controller.abort();
-      }, 120000); // 增加到 120 秒
+    // 建立助手訊息（用於串流顯示）
+    const assistantMessageId = Date.now();
+    setMessages(prev => [...prev, {
+      id: assistantMessageId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+      isStreaming: true
+    }]);
 
+    try {
+      // 使用串流模式
       const response = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message: userMessage.content }),
+        body: JSON.stringify({ 
+          message: userMessage.content,
+          stream: true // 啟用串流模式
+        }),
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-      abortControllerRef.current = null; // 請求完成，清除引用
-
-      // 檢查響應狀態
       if (!response.ok) {
         throw new Error(`伺服器錯誤: ${response.status} ${response.statusText}`);
       }
 
-      const data = await response.json();
+      // 處理串流回應
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let fullContent = '';
 
-      if (data.success) {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: data.answer,
-          timestamp: new Date(),
-          sources: data.sources
-        }]);
-      } else {
-        throw new Error(data.error || '處理訊息失敗');
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 保留最後不完整的行
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'chunk') {
+                fullContent += data.content;
+                // 即時更新訊息內容
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId 
+                    ? { ...msg, content: fullContent }
+                    : msg
+                ));
+              } else if (data.type === 'done') {
+                // 串流完成
+                setMessages(prev => prev.map(msg => 
+                  msg.id === assistantMessageId 
+                    ? { ...msg, isStreaming: false }
+                    : msg
+                ));
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            } catch (e) {
+              console.warn('解析串流資料失敗:', e);
+            }
+          }
+        }
       }
+
+      abortControllerRef.current = null;
     } catch (error) {
       // 清除控制器引用
       abortControllerRef.current = null;

@@ -250,6 +250,63 @@ function generateFallbackAnswer(query, contextText) {
   return '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服：0800-123-456。';
 }
 
+/**
+ * 串流模式處理查詢
+ * @param {string} query - 使用者問題
+ * @param {Function} onChunk - 回調函數，接收每個文字片段
+ * @returns {Promise<void>}
+ */
+export async function processQueryStream(query, onChunk) {
+  // 如果沒有知識庫內容，直接返回
+  if (textChunks.length === 0) {
+    const message = '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。';
+    onChunk(message);
+    return;
+  }
+
+  // 使用 AI 語義理解進行檢索（兩階段檢索）
+  let expandedQuery = query;
+  try {
+    expandedQuery = await expandQueryWithAI(query);
+  } catch (error) {
+    console.warn('AI 語義擴展失敗，使用原始查詢:', error.message);
+  }
+
+  // 使用擴展後的查詢進行檢索
+  const relevantChunks = retrieveRelevantChunks(expandedQuery, textChunks, 5);
+
+  // 決定使用哪種策略
+  let contextText;
+  let useFullKnowledgeBase = false;
+  
+  if (relevantChunks.length === 0) {
+    console.log('⚠️  精準檢索未找到結果，使用整個知識庫進行 AI 搜尋');
+    contextText = originalText;
+    useFullKnowledgeBase = true;
+  } else {
+    contextText = relevantChunks
+      .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
+      .join('\n\n---\n\n');
+  }
+
+  // 使用串流模式生成回答
+  try {
+    await generateAnswer(query, contextText, useFullKnowledgeBase, onChunk);
+  } catch (error) {
+    console.error('串流處理錯誤:', error);
+    
+    // 如果錯誤，使用備援方案
+    if (error.message === 'RATE_LIMIT_EXCEEDED' || 
+        error.message === 'SAFETY_FILTER_BLOCKED' ||
+        error.message === 'EMPTY_RESPONSE') {
+      const fallbackAnswer = generateFallbackAnswer(query, contextText);
+      onChunk(fallbackAnswer);
+    } else {
+      onChunk('不好意思，處理您的問題時發生錯誤，請稍後再試。');
+    }
+  }
+}
+
 // 重新載入知識庫的函數（用於檔案更新後）
 export { loadKnowledgeBase };
 

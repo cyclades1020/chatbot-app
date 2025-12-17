@@ -6,16 +6,22 @@ const router = express.Router();
 
 /**
  * POST /api/chat
- * 處理聊天訊息
+ * 處理聊天訊息（支援串流模式）
  */
 router.post('/chat', async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, stream } = req.body;
 
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
       return res.status(400).json({ error: '請提供有效的訊息內容' });
     }
 
+    // 如果請求串流模式
+    if (stream === true) {
+      return handleStreamingChat(req, res, message.trim());
+    }
+
+    // 一般模式
     const result = await processQuery(message.trim());
 
     res.json({
@@ -31,6 +37,33 @@ router.post('/chat', async (req, res) => {
     });
   }
 });
+
+/**
+ * 處理串流聊天
+ */
+async function handleStreamingChat(req, res, query) {
+  // 設定 SSE (Server-Sent Events) 標頭
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 緩衝
+
+  try {
+    const { processQueryStream } = await import('../services/rag.js');
+    await processQueryStream(query, (chunk) => {
+      // 發送每個文字片段
+      res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+    });
+
+    // 發送完成訊息
+    res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+    res.end();
+  } catch (error) {
+    console.error('串流處理錯誤:', error);
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    res.end();
+  }
+}
 
 /**
  * GET /api/status
