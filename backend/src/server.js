@@ -18,17 +18,27 @@ const PORT = process.env.PORT || 3001;
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000', 'http://localhost:5173'];
 app.use(cors({
   origin: (origin, callback) => {
-    // 允許沒有 origin 的請求（如 Postman）或允許的來源
+    // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
+    if (!origin) {
+      return callback(null, true);
+    }
+    
     // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
     if (process.env.ALLOWED_ORIGINS === '*') {
-      callback(null, true);
-    } else if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('不允許的 CORS 來源'));
+      return callback(null, true);
     }
+    
+    // 檢查是否在允許清單中
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    // 不允許的來源
+    callback(new Error('不允許的 CORS 來源'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
 app.use(express.json());
