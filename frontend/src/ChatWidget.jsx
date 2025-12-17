@@ -167,7 +167,7 @@ function ChatWidget() {
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
         // 區分超時和其他中止原因
         if (error.message.includes('timeout') || error.message.includes('超時')) {
-          errorMessage = '請求超時（超過 120 秒），請稍後再試。AI 處理可能需要較長時間。';
+          errorMessage = '請求超時，請稍後再試。';
         } else {
           errorMessage = '請求被中止。如果持續發生，請重新整理頁面後再試。';
         }
@@ -185,12 +185,16 @@ function ChatWidget() {
         errorMessage = `處理您的訊息時發生錯誤：${error.message}`;
       }
       
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: errorMessage,
-        timestamp: new Date(),
-        isError: true
-      }]);
+      // 更新或移除串流中的訊息，改為錯誤訊息
+      setMessages(prev => {
+        const filtered = prev.filter(msg => !(msg.id === assistantMessageId && msg.isStreaming));
+        return [...filtered, {
+          role: 'assistant',
+          content: errorMessage,
+          timestamp: new Date(),
+          isError: true
+        }];
+      });
     } finally {
       // 確保清除控制器引用和 loading 狀態
       abortControllerRef.current = null;
