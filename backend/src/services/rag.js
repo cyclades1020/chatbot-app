@@ -128,6 +128,25 @@ export async function processQuery(query) {
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
     
+    // 速率限制錯誤 - 告知用戶稍後再試
+    if (error.message === 'RATE_LIMIT_EXCEEDED') {
+      return {
+        answer: '目前服務使用量較高，請稍候幾秒後再試。如有緊急問題，請聯繫客服：0800-123-456。',
+        sources: [],
+        mode: 'rate_limit'
+      };
+    }
+    
+    // API Key 錯誤 - 告知管理員
+    if (error.message === 'API_KEY_INVALID') {
+      console.error('❌ Gemini API Key 設定錯誤，請檢查環境變數');
+      return {
+        answer: '系統設定錯誤，請聯繫技術支援。如有緊急問題，請聯繫客服：0800-123-456。',
+        sources: [],
+        mode: 'config_error'
+      };
+    }
+    
     // 如果 AI 服務都無法使用，使用簡單的關鍵字匹配備援方案
     if (error.message === 'AI_SERVICE_UNAVAILABLE' || 
         (error.message && error.message.includes('Ollama 也發生錯誤'))) {
