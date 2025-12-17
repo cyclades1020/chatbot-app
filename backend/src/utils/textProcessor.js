@@ -54,20 +54,46 @@ export function chunkText(text, chunkSize = 1000, overlap = 200) {
 }
 
 /**
- * 簡單的關鍵字匹配分數計算
+ * 改進的關鍵字匹配分數計算
  * @param {string} query - 查詢文字
  * @param {string} text - 文本內容
  * @returns {number} 匹配分數
  */
 export function calculateRelevanceScore(query, text) {
-  const queryWords = query.toLowerCase().split(/\s+/);
+  // 移除常見的疑問詞和助詞，只保留關鍵字
+  const stopWords = ['什麼', '是什麼', '如何', '怎樣', '嗎', '呢', '的', '了', '是', '有', '在', '要', '可以', '能', '會', '什麼是', '什麼時候', '哪裡', '哪個'];
+  const queryLower = query.toLowerCase();
+  let cleanQuery = queryLower;
+  
+  // 移除標點符號和疑問詞
+  for (const stopWord of stopWords) {
+    cleanQuery = cleanQuery.replace(new RegExp(stopWord, 'gi'), ' ');
+  }
+  
+  // 提取關鍵字（長度大於 1 的字詞）
+  const queryWords = cleanQuery
+    .replace(/[，。！？、；：\s]+/g, ' ')
+    .split(/\s+/)
+    .filter(word => word.length > 1);
+  
+  // 如果沒有關鍵字，使用原始查詢
+  if (queryWords.length === 0) {
+    queryWords.push(...queryLower.replace(/[，。！？、；：\s]+/g, ' ').split(/\s+/).filter(word => word.length > 0));
+  }
+  
   const textLower = text.toLowerCase();
   
   let score = 0;
   for (const word of queryWords) {
-    if (word.length > 1) {
-      const matches = (textLower.match(new RegExp(word, 'g')) || []).length;
-      score += matches;
+    if (word.length > 0) {
+      // 計算匹配次數
+      const matches = (textLower.match(new RegExp(word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length;
+      score += matches * 2; // 增加權重
+      
+      // 如果關鍵字出現在標題或開頭，額外加分
+      if (textLower.indexOf(word) < 100) {
+        score += 3;
+      }
     }
   }
   
