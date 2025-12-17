@@ -287,10 +287,53 @@
   background: #999;
 }
 
-/* 縮小狀態 */
-.chat-widget.minimized .chat-messages,
-.chat-widget.minimized .chat-input-container {
-  display: none;
+/* 懸浮 icon 樣式（完全縮小時） */
+.chat-widget-icon {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 9999;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  user-select: none;
+}
+
+.chat-widget-icon:hover {
+  transform: scale(1.1);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+}
+
+.chat-widget-icon .icon-content {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.chat-widget-icon .icon-badge {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+}
+
+.chat-widget-icon .unread-badge {
+  display: inline-block;
+  background: #ff4444;
+  color: white;
+  border-radius: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.4;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 /* 調整大小控制點 */

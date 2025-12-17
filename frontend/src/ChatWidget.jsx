@@ -162,19 +162,37 @@ function ChatWidget() {
     }
   }, [isResizing]);
 
+  // 如果完全縮小，只顯示懸浮 icon
+  if (isMinimized) {
+    return (
+      <div 
+        className="chat-widget-icon"
+        onClick={handleMinimize}
+        title="點擊展開聊天視窗"
+      >
+        <div className="icon-badge">
+          {messages.filter(m => m.role === 'user').length > 0 && (
+            <span className="unread-badge">{messages.filter(m => m.role === 'user').length}</span>
+          )}
+        </div>
+        <div className="icon-content">💬</div>
+      </div>
+    );
+  }
+
   return (
     <div 
-      className={`chat-widget ${isMinimized ? 'minimized' : ''}`}
+      className="chat-widget"
       ref={widgetRef}
       style={{
-        width: isMinimized ? 'auto' : `${widgetSize.width}px`,
-        height: isMinimized ? 'auto' : `${widgetSize.height}px`
+        width: `${widgetSize.width}px`,
+        height: `${widgetSize.height}px`
       }}
     >
       <div className="chat-header">
         <h3>💬 客服聊天</h3>
-        <button className="minimize-button" onClick={handleMinimize}>
-          {isMinimized ? '⬆️' : '⬇️'}
+        <button className="minimize-button" onClick={handleMinimize} title="縮小">
+          ⬇️
         </button>
       </div>
 
@@ -213,12 +231,10 @@ function ChatWidget() {
           發送
         </button>
       </div>
-      {!isMinimized && (
-        <div 
-          className="resize-handle"
-          onMouseDown={handleMouseDown}
-        ></div>
-      )}
+      <div 
+        className="resize-handle"
+        onMouseDown={handleMouseDown}
+      ></div>
     </div>
   );
 }
