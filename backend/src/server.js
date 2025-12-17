@@ -27,12 +27,8 @@ console.log('CORS 設定:', {
 // 如果設定為 '*'，使用簡單的 CORS 配置（允許所有來源）
 if (isWildcard) {
   console.log('✅ 使用 wildcard CORS 配置（允許所有來源）');
-  app.use(cors({
-    origin: true, // 允許所有來源
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-  }));
+  // 使用最簡單的配置，允許所有來源
+  app.use(cors());
 } else {
   // 否則使用指定的來源清單
   const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173'];
