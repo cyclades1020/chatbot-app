@@ -53,27 +53,7 @@ function App() {
 
   return (
     <div className="app">
-      <div className="admin-panel">
-        <h2>管理面板</h2>
-        <button onClick={() => setShowUploader(!showUploader)}>
-          {showUploader ? '隱藏' : '顯示'}文本上傳介面
-        </button>
-        
-        {status && (
-          <div className="status-info">
-            <h3>系統狀態</h3>
-            <p>知識庫: {status.knowledgeBase.hasContent ? '✅ 已載入' : '❌ 未載入'}</p>
-            <p>文本長度: {status.knowledgeBase.textLength} 字元</p>
-            <p>文本區塊數: {status.knowledgeBase.chunksCount}</p>
-            <p>Gemini API: {status.gemini.connected ? '✅ 已連線' : '❌ 未連線'}</p>
-          </div>
-        )}
-
-        {showUploader && (
-          <TextUploader onSuccess={handleUploadSuccess} />
-        )}
-      </div>
-
+      {/* 客戶端只顯示聊天視窗，管理面板已隱藏 */}
       <div className="chat-container">
         <ChatWidget />
       </div>

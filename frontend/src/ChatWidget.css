@@ -1,13 +1,27 @@
 .chat-widget {
-  width: 100%;
-  max-width: 600px;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  width: 400px;
   height: 600px;
+  min-width: 300px;
+  min-height: 400px;
+  max-width: 800px;
+  max-height: 900px;
   display: flex;
   flex-direction: column;
   background: white;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
   overflow: hidden;
+  z-index: 9999;
+  transition: height 0.3s ease;
+}
+
+.chat-widget.minimized {
+  height: auto;
+  width: auto;
+  min-width: 200px;
 }
 
 .chat-header {
@@ -15,12 +29,33 @@
   color: white;
   padding: 16px 20px;
   text-align: center;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: move;
+  user-select: none;
 }
 
 .chat-header h3 {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
+  flex: 1;
+}
+
+.minimize-button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+  transition: background 0.2s;
+}
+
+.minimize-button:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .chat-messages {
@@ -250,5 +285,27 @@
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: #999;
+}
+
+/* 縮小狀態 */
+.chat-widget.minimized .chat-messages,
+.chat-widget.minimized .chat-input-container {
+  display: none;
+}
+
+/* 調整大小控制點 */
+.resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  background: linear-gradient(-45deg, transparent 40%, #ccc 40%, #ccc 45%, transparent 45%, transparent 55%, #ccc 55%, #ccc 60%, transparent 60%);
+  z-index: 10;
+}
+
+.resize-handle:hover {
+  background: linear-gradient(-45deg, transparent 40%, #667eea 40%, #667eea 45%, transparent 45%, transparent 55%, #667eea 55%, #667eea 60%, transparent 60%);
 }
 

@@ -67,8 +67,7 @@ body {
 }
 
 .chat-container {
-  display: flex;
-  justify-content: center;
+  /* 聊天視窗已固定在右下角，不需要額外樣式 */
 }
 
 .text-uploader {

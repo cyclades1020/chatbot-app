@@ -27,8 +27,13 @@ function ChatWidget() {
   ]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [widgetSize, setWidgetSize] = useState({ width: 400, height: 600 });
+  const [isResizing, setIsResizing] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const widgetRef = useRef(null);
+  const resizeRef = useRef({ startX: 0, startY: 0, startWidth: 0, startHeight: 0 });
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -116,10 +121,61 @@ function ChatWidget() {
     }
   };
 
+  const handleMinimize = () => {
+    setIsMinimized(!isMinimized);
+  };
+
+  const handleMouseDown = (e) => {
+    if (isMinimized) return;
+    setIsResizing(true);
+    resizeRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startWidth: widgetSize.width,
+      startHeight: widgetSize.height
+    };
+    e.preventDefault();
+  };
+
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isResizing) return;
+      const deltaX = e.clientX - resizeRef.current.startX;
+      const deltaY = e.clientY - resizeRef.current.startY;
+      setWidgetSize({
+        width: Math.max(300, Math.min(800, resizeRef.current.startWidth + deltaX)),
+        height: Math.max(400, Math.min(900, resizeRef.current.startHeight - deltaY))
+      });
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isResizing]);
+
   return (
-    <div className="chat-widget">
+    <div 
+      className={`chat-widget ${isMinimized ? 'minimized' : ''}`}
+      ref={widgetRef}
+      style={{
+        width: isMinimized ? 'auto' : `${widgetSize.width}px`,
+        height: isMinimized ? 'auto' : `${widgetSize.height}px`
+      }}
+    >
       <div className="chat-header">
         <h3>💬 客服聊天</h3>
+        <button className="minimize-button" onClick={handleMinimize}>
+          {isMinimized ? '⬆️' : '⬇️'}
+        </button>
       </div>
 
       <div className="chat-messages">
@@ -157,6 +213,12 @@ function ChatWidget() {
           發送
         </button>
       </div>
+      {!isMinimized && (
+        <div 
+          className="resize-handle"
+          onMouseDown={handleMouseDown}
+        ></div>
+      )}
     </div>
   );
 }
