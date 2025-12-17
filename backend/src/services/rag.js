@@ -129,7 +129,8 @@ export async function processQuery(query) {
     console.error('處理查詢時發生錯誤:', error);
     
     // 如果 AI 服務都無法使用，使用簡單的關鍵字匹配備援方案
-    if (error.message === 'AI_SERVICE_UNAVAILABLE') {
+    if (error.message === 'AI_SERVICE_UNAVAILABLE' || 
+        (error.message && error.message.includes('Ollama 也發生錯誤'))) {
       console.log('⚠️  AI 服務無法使用，使用關鍵字匹配備援方案...');
       const fallbackAnswer = generateFallbackAnswer(query, contextText);
       return {
@@ -146,6 +147,60 @@ export async function processQuery(query) {
       mode: 'error'
     };
   }
+}
+
+/**
+ * 備援方案：當 AI 服務無法使用時，使用簡單的關鍵字匹配生成回答
+ * @param {string} query - 使用者問題
+ * @param {string} contextText - 知識庫內容
+ * @returns {string} 簡單的回答
+ */
+function generateFallbackAnswer(query, contextText) {
+  // 定義常見問題的關鍵字映射
+  const keywordMap = {
+    '退貨': '根據我們的退貨政策，商品收到後 7 天內可申請退貨。商品需保持原狀、未使用過，運費由買家負擔。退款將在收到商品後 3-5 個工作天內處理。',
+    '運送': '運送時間如下：台灣本島 3-5 個工作天，離島地區 5-7 個工作天，海外地區 7-14 個工作天，超商取貨 2-3 個工作天。',
+    '付款': '我們接受以下付款方式：信用卡（Visa、MasterCard、JCB）、ATM 轉帳、超商代碼繳費、貨到付款（需加收手續費 NT$ 30）。',
+    '聯絡': '聯絡資訊：客服電話 0800-123-456，服務時間週一至週五 9:00-18:00，電子郵件 service@example.com，線上客服 24 小時服務。',
+    '服務時間': '服務時間為週一至週五 9:00-18:00，線上客服提供 24 小時服務。',
+    '營業時間': '服務時間為週一至週五 9:00-18:00，線上客服提供 24 小時服務。',
+    '會員': '會員權益：新會員註冊即享 100 元購物金，生日當月享 9 折優惠，累積消費滿 5000 元升級為 VIP 會員，VIP 會員享有免運費優惠。',
+    '電話': '客服電話：0800-123-456，服務時間週一至週五 9:00-18:00。',
+    'email': '電子郵件：service@example.com',
+    '郵件': '電子郵件：service@example.com'
+  };
+
+  // 檢查關鍵字匹配
+  const queryLower = query.toLowerCase();
+  for (const [keyword, answer] of Object.entries(keywordMap)) {
+    if (queryLower.includes(keyword)) {
+      return answer;
+    }
+  }
+
+  // 如果沒有匹配，嘗試從知識庫中提取相關內容
+  if (contextText) {
+    // 簡單的關鍵字匹配，找出最相關的段落
+    const lines = contextText.split('\n').filter(line => line.trim().length > 0);
+    let bestMatch = '';
+    let bestScore = 0;
+
+    for (const line of lines) {
+      const score = calculateRelevanceScore(query, line);
+      if (score > bestScore && score > 0) {
+        bestScore = score;
+        bestMatch = line;
+      }
+    }
+
+    if (bestMatch) {
+      // 清理並格式化回答
+      return bestMatch.trim().replace(/^[-•]\s*/, '').substring(0, 200);
+    }
+  }
+
+  // 最後的備援：返回預設訊息
+  return '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服：0800-123-456。';
 }
 
 // 重新載入知識庫的函數（用於檔案更新後）
