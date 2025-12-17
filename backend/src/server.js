@@ -19,7 +19,10 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || ['http://local
 app.use(cors({
   origin: (origin, callback) => {
     // 允許沒有 origin 的請求（如 Postman）或允許的來源
-    if (!origin || allowedOrigins.includes(origin)) {
+    // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
+    if (process.env.ALLOWED_ORIGINS === '*') {
+      callback(null, true);
+    } else if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('不允許的 CORS 來源'));
