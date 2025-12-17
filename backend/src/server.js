@@ -18,6 +18,20 @@ const PORT = process.env.PORT || 3001;
 const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
 const isWildcard = allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*';
 
+// 預設允許的 Vercel 網址（包含所有可能的 Vercel 網址）
+const defaultVercelOrigins = [
+  'https://chatbot-app-eight-sepia.vercel.app',
+  'https://chatbot-app-git-main-cyclades1020s-projects.vercel.app',
+  // 可以加入更多 Vercel 預覽網址
+];
+
+// 本地開發網址
+const localOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173'
+];
+
 // 記錄 CORS 設定（用於調試）
 console.log('CORS 設定:', {
   ALLOWED_ORIGINS: allowedOriginsEnv,
@@ -27,11 +41,10 @@ console.log('CORS 設定:', {
 // 如果設定為 '*'，使用簡單的 CORS 配置（允許所有來源）
 if (isWildcard) {
   console.log('✅ 使用 wildcard CORS 配置（允許所有來源）');
-  // 使用最簡單的配置，允許所有來源
   app.use(cors());
 } else {
   // 否則使用指定的來源清單
-  const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173'];
+  const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || [...defaultVercelOrigins, ...localOrigins];
   console.log('✅ 使用指定來源 CORS 配置:', allowedOrigins);
   
   app.use(cors({
@@ -43,7 +56,15 @@ if (isWildcard) {
       
       // 檢查是否在允許清單中（不區分大小寫）
       const normalizedOrigin = origin.trim();
-      const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase());
+      const isAllowed = allowedOrigins.some(allowed => {
+        const normalizedAllowed = allowed.toLowerCase();
+        const normalizedRequest = normalizedOrigin.toLowerCase();
+        // 支援 Vercel 的預覽網址（包含專案名稱即可）
+        if (normalizedAllowed.includes('vercel.app') && normalizedRequest.includes('vercel.app')) {
+          return true; // 允許所有 Vercel 網址
+        }
+        return normalizedAllowed === normalizedRequest;
+      });
       
       if (isAllowed) {
         return callback(null, true);
@@ -51,6 +72,7 @@ if (isWildcard) {
       
       // 不允許的來源
       console.log(`❌ CORS 拒絕來源: ${origin}`);
+      console.log(`   允許的來源:`, allowedOrigins);
       callback(new Error('不允許的 CORS 來源'));
     },
     credentials: true,
