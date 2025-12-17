@@ -234,9 +234,9 @@ ${query}
         return result;
       },
       {
-        maxRetries: 2,
-        initialDelay: 1500,
-        maxDelay: 6000,
+        maxRetries: 3, // 增加重試次數
+        initialDelay: 3000, // 增加初始延遲
+        maxDelay: 15000,    // 增加最大延遲
         backoffMultiplier: 2
       }
     );
