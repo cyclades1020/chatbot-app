@@ -15,7 +15,16 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // CORS 設定
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(origin => origin.trim()) || ['http://localhost:3000', 'http://localhost:5173'];
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+const allowedOrigins = allowedOriginsEnv?.split(',').map(origin => origin.trim()).filter(origin => origin) || ['http://localhost:3000', 'http://localhost:5173'];
+
+// 記錄 CORS 設定（用於調試）
+console.log('CORS 設定:', {
+  ALLOWED_ORIGINS: allowedOriginsEnv,
+  allowedOrigins: allowedOrigins,
+  isWildcard: allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*'
+});
+
 app.use(cors({
   origin: (origin, callback) => {
     // 允許沒有 origin 的請求（如 Postman、伺服器端請求）
@@ -24,18 +33,23 @@ app.use(cors({
     }
     
     // 如果 ALLOWED_ORIGINS 設定為 '*'，則允許所有來源（僅用於測試）
-    if (process.env.ALLOWED_ORIGINS === '*' || process.env.ALLOWED_ORIGINS?.trim() === '*') {
+    const isWildcard = allowedOriginsEnv === '*' || allowedOriginsEnv?.trim() === '*';
+    if (isWildcard) {
       return callback(null, true);
     }
     
     // 檢查是否在允許清單中（不區分大小寫）
     const normalizedOrigin = origin.trim();
-    if (allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase())) {
+    const isAllowed = allowedOrigins.some(allowed => allowed.toLowerCase() === normalizedOrigin.toLowerCase());
+    
+    if (isAllowed) {
       return callback(null, true);
     }
     
     // 不允許的來源
-    console.log(`CORS 拒絕來源: ${origin}, 允許的來源:`, allowedOrigins);
+    console.log(`❌ CORS 拒絕來源: ${origin}`);
+    console.log(`   允許的來源:`, allowedOrigins);
+    console.log(`   ALLOWED_ORIGINS 環境變數:`, allowedOriginsEnv);
     callback(new Error('不允許的 CORS 來源'));
   },
   credentials: true,
