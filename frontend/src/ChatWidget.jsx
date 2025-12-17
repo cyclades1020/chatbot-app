@@ -86,66 +86,119 @@ function ChatWidget() {
     }]);
 
     try {
-      // 使用串流模式
-      const response = await fetch(`${API_URL}/api/chat`, {
+      // 先嘗試串流模式
+      let useStreaming = true;
+      let response;
+      
+      try {
+        response = await fetch(`${API_URL}/api/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ 
+            message: userMessage.content,
+            stream: true // 啟用串流模式
+          }),
+          signal: controller.signal
+        });
+
+        // 如果 404，降級到一般模式
+        if (response.status === 404) {
+          console.warn('串流端點不存在，降級到一般模式');
+          useStreaming = false;
+        } else if (!response.ok) {
+          throw new Error(`伺服器錯誤: ${response.status} ${response.statusText}`);
+        }
+      } catch (fetchError) {
+        // 如果串流請求失敗，降級到一般模式
+        if (fetchError.name !== 'AbortError') {
+          console.warn('串流模式失敗，降級到一般模式:', fetchError.message);
+          useStreaming = false;
+        } else {
+          throw fetchError;
+        }
+      }
+
+      // 如果串流模式可用，處理串流回應
+      if (useStreaming && response && response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // 保留最後不完整的行
+
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.type === 'chunk') {
+                  fullContent += data.content;
+                  // 即時更新訊息內容
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessageId 
+                      ? { ...msg, content: fullContent }
+                      : msg
+                  ));
+                } else if (data.type === 'done') {
+                  // 串流完成
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === assistantMessageId 
+                      ? { ...msg, isStreaming: false }
+                      : msg
+                  ));
+                } else if (data.type === 'error') {
+                  throw new Error(data.message);
+                }
+              } catch (e) {
+                console.warn('解析串流資料失敗:', e);
+              }
+            }
+          }
+        }
+
+        abortControllerRef.current = null;
+        return; // 串流模式成功，結束
+      }
+
+      // 降級到一般模式
+      console.log('使用一般模式（非串流）');
+      const normalResponse = await fetch(`${API_URL}/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
           message: userMessage.content,
-          stream: true // 啟用串流模式
+          stream: false // 一般模式
         }),
         signal: controller.signal
       });
 
-      if (!response.ok) {
-        throw new Error(`伺服器錯誤: ${response.status} ${response.statusText}`);
+      if (!normalResponse.ok) {
+        throw new Error(`伺服器錯誤: ${normalResponse.status} ${normalResponse.statusText}`);
       }
 
-      // 處理串流回應
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullContent = '';
+      const data = await normalResponse.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // 保留最後不完整的行
-
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'chunk') {
-                fullContent += data.content;
-                // 即時更新訊息內容
-                setMessages(prev => prev.map(msg => 
-                  msg.id === assistantMessageId 
-                    ? { ...msg, content: fullContent }
-                    : msg
-                ));
-              } else if (data.type === 'done') {
-                // 串流完成
-                setMessages(prev => prev.map(msg => 
-                  msg.id === assistantMessageId 
-                    ? { ...msg, isStreaming: false }
-                    : msg
-                ));
-              } else if (data.type === 'error') {
-                throw new Error(data.message);
-              }
-            } catch (e) {
-              console.warn('解析串流資料失敗:', e);
-            }
-          }
-        }
+      if (data.success) {
+        // 更新助手訊息為完整回答
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: data.answer, isStreaming: false }
+            : msg
+        ));
+      } else {
+        throw new Error(data.error || '處理訊息失敗');
       }
 
       abortControllerRef.current = null;
