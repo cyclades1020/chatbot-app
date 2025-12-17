@@ -88,7 +88,7 @@ function ChatWidget() {
       if (error.name === 'AbortError' || error.message.includes('aborted')) {
         errorMessage = '請求超時，請稍後再試。如果持續發生，可能是 AI 模型處理時間較長。';
       } else if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-        errorMessage = '無法連接到伺服器，請確認後端服務是否正在運行（http://localhost:3001）。';
+        errorMessage = '無法連接到伺服器，請確認後端服務是否正在運行。';
       } else if (error.message) {
         errorMessage = `處理您的訊息時發生錯誤：${error.message}`;
       }
