@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { chunkText, retrieveRelevantChunks } from '../utils/textProcessor.js';
-import { generateAnswer, generateGeneralChat } from './gemini.js';
+import { generateAnswer, generateGeneralChat, expandQueryWithAI } from './gemini.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
