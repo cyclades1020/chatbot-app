@@ -5,7 +5,8 @@ const getApiUrl = () => {
   if (typeof window !== 'undefined' && window.CHATBOT_API_URL) {
     return window.CHATBOT_API_URL;
   }
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  // 優先使用環境變數，如果沒有則使用 Railway 後端網址
+  return import.meta.env.VITE_API_URL || 'https://chatbot-app-production-9cd7.up.railway.app';
 };
 
 const API_URL = getApiUrl();
