@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
 import { generateAnswerWithOllama, generateGeneralChatWithOllama } from './ollama.js';
+import { retryWithBackoff } from '../utils/rateLimiter.js';
 
 dotenv.config();
 
@@ -62,7 +63,20 @@ ${userQuery}
 
 **請回答（使用與使用者問題相同的語言，簡潔回答）：**`;
 
-    const result = await model.generateContent(prompt);
+    // 使用重試機制處理 API 請求
+    const result = await retryWithBackoff(
+      async () => {
+        const result = await model.generateContent(prompt);
+        return result;
+      },
+      {
+        maxRetries: 3,
+        initialDelay: 2000, // 初始延遲 2 秒
+        maxDelay: 10000,    // 最大延遲 10 秒
+        backoffMultiplier: 2
+      }
+    );
+
     const response = await result.response;
     const answer = response.text();
 
