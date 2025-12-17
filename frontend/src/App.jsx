@@ -10,7 +10,18 @@ const getApiUrl = () => {
     url = window.CHATBOT_API_URL;
   } else {
     // 優先使用環境變數，如果沒有則使用 Railway 後端網址
-    url = import.meta.env.VITE_API_URL || 'https://chatbot-app-production-2ea5.up.railway.app';
+    // 注意：Vite 環境變數必須以 VITE_ 開頭
+    const envUrl = import.meta.env.VITE_API_URL;
+    url = envUrl || 'https://chatbot-app-production-2ea5.up.railway.app';
+    
+    // 調試：記錄實際使用的 URL（僅開發環境）
+    if (import.meta.env.DEV) {
+      console.log('API URL 來源:', {
+        env: envUrl,
+        fallback: 'https://chatbot-app-production-2ea5.up.railway.app',
+        final: url
+      });
+    }
   }
   // 移除尾隨斜線，避免雙斜線問題
   return url.replace(/\/+$/, '');
