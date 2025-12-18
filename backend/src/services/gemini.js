@@ -76,7 +76,8 @@ ${contextText}`;
 2. **回答要求**：回答要簡潔、友善且專業（盡量簡短，不超過 3 句話）
 3. **語言要求**：請自動識別使用者問題使用的語言，並使用相同的語言回覆
 4. **語義理解**：請理解問題的語義，即使用詞不完全相同也要找出相關資訊（例如：「營業時間」=「服務時間」，「退貨政策」=「退貨規定」）
-5. **無相關資訊處理**：如果文本內容中完全沒有相關資訊，請明確告知使用者「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。」
+5. **重組答案**：可以將知識庫中的不同段落資訊重組，形成完整的回答，但必須完全基於提供的文本內容
+6. **無相關資訊處理**：如果文本內容中完全沒有相關資訊，無法重組出答案，請返回特殊標記「NO_RELEVANT_INFO」，然後在標記後提供完整的預設訊息。預設訊息格式：從文本中找出客服電話和電子郵件，然後說「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 [電話] 或 email [email]」。如果文本中沒有電話或email，則說「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。」
 
 ${contextInstruction}
 
@@ -118,7 +119,35 @@ ${userQuery}
       throw new Error('EMPTY_RESPONSE');
     }
     
-    const answer = response.text();
+    let answer = response.text();
+
+    // 檢查回答是否包含「無相關資訊」標記
+    if (answer.includes('NO_RELEVANT_INFO')) {
+      // 提取預設訊息（標記後的部分）
+      const defaultMessage = answer.split('NO_RELEVANT_INFO')[1]?.trim() || answer;
+      
+      // 如果 AI 沒有提供完整訊息，使用預設格式
+      if (!defaultMessage.includes('不好意思') || !defaultMessage.includes('聯繫')) {
+        // 從知識庫文本中提取客服資訊
+        const phoneMatch = contextText.match(/客服電話[：:]\s*([0-9-]+)/);
+        const emailMatch = contextText.match(/電子郵件[：:]\s*([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
+        
+        const phone = phoneMatch ? phoneMatch[1] : null;
+        const email = emailMatch ? emailMatch[1] : null;
+        
+        if (phone && email) {
+          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone} 或 email ${email}。`;
+        } else if (phone) {
+          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone}。`;
+        } else if (email) {
+          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫 email ${email}。`;
+        } else {
+          answer = '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。';
+        }
+      } else {
+        answer = defaultMessage;
+      }
+    }
 
     return answer;
   } catch (error) {

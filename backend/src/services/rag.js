@@ -79,7 +79,7 @@ export async function processQuery(query) {
   if (textChunks.length === 0) {
     // 規則：如果知識庫為空，回應特定訊息
     return {
-      answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。',
+      answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。',
       sources: [],
       mode: 'no_knowledge_base' // 標記為知識庫為空
     };
