@@ -120,6 +120,14 @@ export async function processQuery(query) {
   try {
     const answer = await generateAnswer(query, contextText, useFullKnowledgeBase);
     
+    // 如果使用完整知識庫且成功生成回答，自動擴展知識庫
+    if (useFullKnowledgeBase && answer) {
+      // 非同步執行，不阻塞回應
+      expandKnowledgeBaseAsync(query, answer).catch(err => {
+        console.warn('知識庫擴展失敗（不影響回答）:', err.message);
+      });
+    }
+    
     return {
       answer,
       sources: [], // 不顯示參考資料來源

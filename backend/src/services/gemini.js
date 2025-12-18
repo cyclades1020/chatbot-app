@@ -274,6 +274,93 @@ ${userQuery}
 }
 
 /**
+ * 分析問題並找出知識庫中相關段落，生成擴展關鍵字
+ * @param {string} query - 使用者問題
+ * @param {string} knowledgeBaseText - 完整知識庫內容
+ * @param {string} answer - AI 生成的回答
+ * @returns {Promise<{matchedSection: string, expandedKeywords: string}>} 匹配的段落和擴展關鍵字
+ */
+export async function analyzeAndExpandKnowledgeBase(query, knowledgeBaseText, answer) {
+  if (!genAI) {
+    return null;
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-lite',
+      generationConfig: {
+        maxOutputTokens: 200,
+        temperature: 0.3,
+      },
+      safetySettings: SAFETY_SETTINGS
+    });
+
+    const prompt = `請分析以下使用者問題和 AI 回答，找出知識庫中最相關的段落，並生成擴展關鍵字。
+
+**使用者問題：**
+${query}
+
+**AI 回答：**
+${answer}
+
+**完整知識庫內容：**
+${knowledgeBaseText}
+
+**任務：**
+1. 找出知識庫中與問題最相關的段落（完整段落，包含標題和內容）
+2. 根據問題和回答，生成 3-5 個擴展關鍵字或同義詞（用於未來檢索）
+
+**輸出格式（JSON）：**
+{
+  "matchedSection": "找到的完整段落（包含標題）",
+  "expandedKeywords": "關鍵字1 關鍵字2 關鍵字3"
+}
+
+**範例：**
+- 問題：「營業時間是什麼？」
+- 回答：「服務時間為週一至週五 9:00-18:00...」
+- 匹配段落：「4. 聯絡資訊\n   - 服務時間：週一至週五 9:00-18:00」
+- 擴展關鍵字：營業時間 開店時間 營業時段 服務時段
+
+**請只返回 JSON，不要其他說明：**`;
+
+    const result = await retryWithBackoff(
+      async () => {
+        const result = await model.generateContent(prompt);
+        return result;
+      },
+      {
+        maxRetries: 2,
+        initialDelay: 2000,
+        maxDelay: 8000,
+        backoffMultiplier: 2
+      }
+    );
+
+    const response = await result.response;
+    const text = response.text().trim();
+    
+    // 嘗試解析 JSON（可能包含 markdown 代碼塊）
+    let jsonText = text;
+    if (text.includes('```')) {
+      const match = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+      if (match) {
+        jsonText = match[1];
+      }
+    }
+    
+    const data = JSON.parse(jsonText);
+    return {
+      matchedSection: data.matchedSection || '',
+      expandedKeywords: data.expandedKeywords || ''
+    };
+  } catch (error) {
+    console.warn('知識庫擴展分析失敗:', error.message);
+    return null;
+  }
+}
+
+/**
  * 使用 AI 擴展查詢，理解語義相似性
  * 例如：「營業時間」和「服務時間」應該被視為相同
  * @param {string} query - 原始查詢
