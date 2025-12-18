@@ -169,35 +169,162 @@ npm start
 
 ### 4. 鑲嵌到網站
 
-**方法一：使用建置後的 Widget**
+#### **方法一：使用 iframe（最簡單，推薦）**
 
-1. 建置前端：
+**適用場景**：WordPress、一般 HTML 網站、任何支援 iframe 的平台
+
+**步驟：**
+
+1. **取得前端網址**
+   - 如果使用 Vercel 部署：`https://您的專案名稱.vercel.app`
+   - 如果有自訂網域：使用您的自訂網域
+
+2. **在 HTML 中加入程式碼**
+   
+   **位置**：建議放在 `</body>` 標籤前（頁面底部）
+   
+   ```html
+   <!-- 聊天機器人 iframe -->
+   <div id="chatbot-container" style="position: fixed; bottom: 20px; right: 20px; width: 400px; height: 600px; z-index: 9999;">
+     <iframe 
+       src="https://您的Vercel網址或自訂網域" 
+       width="100%" 
+       height="100%"
+       frameborder="0"
+       style="border-radius: 12px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+     </iframe>
+   </div>
+   ```
+
+3. **參數說明**：
+   - `src`：**前端網址**（Vercel 部署的網址，不是 Railway）
+   - `width`：聊天視窗寬度（建議 400px）
+   - `height`：聊天視窗高度（建議 600px）
+   - `bottom: 20px`：距離底部 20 像素（可調整）
+   - `right: 20px`：距離右側 20 像素（可調整）
+   - `z-index: 9999`：確保聊天視窗在最上層
+
+4. **WordPress 範例**：
+   - 進入「外觀」→「主題編輯器」
+   - 找到 `footer.php` 檔案
+   - 在 `</body>` 標籤前加入上述程式碼
+
+---
+
+#### **方法二：使用建置後的 Widget（進階）**
+
+**適用場景**：需要更多控制權、自訂樣式、動態載入
+
+**步驟：**
+
+1. **建置前端**：
 ```bash
 cd frontend
 npm run build
 ```
 
-2. 在您的 HTML 頁面中加入：
+2. **上傳檔案**
+   - 將 `frontend/dist/` 資料夾中的檔案上傳到您的網站伺服器
+   - 可以使用 FTP 或網站檔案管理器
+
+3. **在 HTML 中加入程式碼**
+   
+   **位置**：建議放在 `</body>` 標籤前（頁面底部）
+   
+   ```html
+   <!-- 聊天機器人容器 -->
+   <div id="chatbot-widget"></div>
+   
+   <!-- 載入 Widget 腳本 -->
+   <script src="https://您的網站網址/chatbot/chatbot-widget.js"></script>
+   
+   <!-- 初始化聊天機器人 -->
+   <script>
+     window.initChatbotWidget('chatbot-widget', {
+       apiUrl: 'https://您的Railway後端網址'  // 重要：這是後端網址（Railway），不是前端網址
+     });
+   </script>
+   
+   <!-- 樣式設定（可選） -->
+   <style>
+     #chatbot-widget {
+       position: fixed;
+       bottom: 20px;
+       right: 20px;
+       width: 400px;
+       height: 600px;
+       z-index: 9999;
+     }
+   </style>
+   ```
+
+4. **參數詳細說明**：
+   
+   - **`apiUrl`（必填）**：
+     - **類型**：字串（String）
+     - **說明**：後端 API 的網址（Railway 部署的網址）
+     - **格式**：`https://您的Railway網址`（例如：`https://your-app.up.railway.app`）
+     - **重要**：這是**後端網址**（Railway），不是前端網址（Vercel）
+     - **如何取得**：
+       1. 登入 Railway 專案
+       2. 進入「Settings」→「Domains」
+       3. 複製產生的網址或自訂網域
+     - **注意**：必須使用 HTTPS，不能使用 HTTP
+   
+   - **`chatbot-widget`（容器 ID）**：
+     - **類型**：字串（String）
+     - **說明**：聊天機器人容器的 HTML ID
+     - **預設**：`'chatbot-widget'`
+     - **可自訂**：可以改為任何您想要的 ID，但要確保與 `initChatbotWidget` 的第一個參數一致
+
+5. **完整範例**：
 ```html
-<div id="chatbot-widget"></div>
-<script src="path/to/chatbot-widget.js"></script>
-<script>
-  window.initChatbotWidget('chatbot-widget', {
-    apiUrl: 'http://your-backend-url:3001'
-  });
-</script>
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>我的網站</title>
+</head>
+<body>
+  <!-- 您的網站內容 -->
+  
+  <!-- 聊天機器人（放在 body 底部） -->
+  <div id="chatbot-widget"></div>
+  <script src="https://您的網站網址/chatbot/chatbot-widget.js"></script>
+  <script>
+    window.initChatbotWidget('chatbot-widget', {
+      apiUrl: 'https://your-app.up.railway.app'  // Railway 後端網址
+    });
+  </script>
+  <style>
+    #chatbot-widget {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 400px;
+      height: 600px;
+      z-index: 9999;
+    }
+  </style>
+</body>
+</html>
 ```
 
-**方法二：使用 iframe**
+---
 
-```html
-<iframe 
-  src="http://your-frontend-url:5173" 
-  width="400" 
-  height="600"
-  frameborder="0">
-</iframe>
-```
+#### **重要說明**
+
+**網址對應關係**：
+- **前端網址（Vercel）**：用於 iframe 的 `src` 屬性
+- **後端網址（Railway）**：用於 Widget 的 `apiUrl` 參數
+
+**為什麼需要兩個網址？**
+- **前端（Vercel）**：負責顯示聊天介面（UI）
+- **後端（Railway）**：負責處理 AI 邏輯和 API 請求
+
+**CORS 設定**：
+- 確保 Railway 後端的 `ALLOWED_ORIGINS` 環境變數包含您的網站網址
+- 例如：`ALLOWED_ORIGINS=https://您的網站.com,https://您的Vercel網址`
 
 ## API 端點
 
