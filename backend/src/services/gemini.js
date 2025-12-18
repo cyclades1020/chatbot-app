@@ -77,7 +77,12 @@ ${contextText}`;
 3. **語言要求**：請自動識別使用者問題使用的語言，並使用相同的語言回覆
 4. **語義理解**：請理解問題的語義，即使用詞不完全相同也要找出相關資訊（例如：「營業時間」=「服務時間」，「退貨政策」=「退貨規定」）
 5. **重組答案**：可以將知識庫中的不同段落資訊重組，形成完整的回答，但必須完全基於提供的文本內容
-6. **無相關資訊處理**：如果文本內容中完全沒有相關資訊，無法重組出答案，請返回特殊標記「NO_RELEVANT_INFO」，然後在標記後提供完整的預設訊息。預設訊息格式：從文本中找出客服電話和電子郵件，然後說「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 [電話] 或 email [email]」。如果文本中沒有電話或email，則說「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。」
+6. **無相關資訊處理**：如果文本內容中完全沒有相關資訊，無法重組出答案，請返回特殊標記「NO_RELEVANT_INFO」，然後在標記後提供自然、友善的回覆。回覆要求：
+   - 表達歉意並說明需要時間確認
+   - 提供客服聯繫方式（從文本中找出客服電話和電子郵件）
+   - 使用自然、多樣化的表達方式，避免重複相同的字句
+   - 每次回答都應該有不同的措辭，但保持相同的含義和專業度
+   - 範例：「很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎致電 [電話] 或發送郵件至 [email]，我們會盡快為您處理。」
 
 ${contextInstruction}
 
@@ -123,11 +128,18 @@ ${userQuery}
 
     // 檢查回答是否包含「無相關資訊」標記
     if (answer.includes('NO_RELEVANT_INFO')) {
-      // 提取預設訊息（標記後的部分）
-      const defaultMessage = answer.split('NO_RELEVANT_INFO')[1]?.trim() || answer;
+      // 提取 AI 生成的訊息（標記後的部分），完全移除標記
+      let aiMessage = answer.split('NO_RELEVANT_INFO')[1]?.trim() || '';
       
-      // 如果 AI 沒有提供完整訊息，使用預設格式
-      if (!defaultMessage.includes('不好意思') || !defaultMessage.includes('聯繫')) {
+      // 如果標記在開頭，取後面的內容
+      if (answer.startsWith('NO_RELEVANT_INFO')) {
+        aiMessage = answer.replace(/^NO_RELEVANT_INFO\s*/i, '').trim();
+      }
+      
+      // 如果 AI 生成的訊息不完整或不符合要求，使用 AI 重新生成自然答覆
+      if (!aiMessage || aiMessage.length < 20 || 
+          (!aiMessage.includes('確認') && !aiMessage.includes('稍候') && !aiMessage.includes('稍等'))) {
+        
         // 從知識庫文本中提取客服資訊
         const phoneMatch = contextText.match(/客服電話[：:]\s*([0-9-]+)/);
         const emailMatch = contextText.match(/電子郵件[：:]\s*([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
@@ -135,18 +147,55 @@ ${userQuery}
         const phone = phoneMatch ? phoneMatch[1] : null;
         const email = emailMatch ? emailMatch[1] : null;
         
-        if (phone && email) {
-          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone} 或 email ${email}。`;
-        } else if (phone) {
-          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone}。`;
-        } else if (email) {
-          answer = `不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫 email ${email}。`;
-        } else {
-          answer = '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。';
+        // 使用 AI 生成自然、多樣化的答覆
+        try {
+          const fallbackPrompt = `請生成一個自然、友善的客服回覆，表達以下含義：
+1. 對於問題需要時間確認
+2. 提供客服聯繫方式
+
+**要求：**
+- 使用自然、多樣化的表達方式
+- 避免使用「不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等」這種固定格式
+- 每次回答都應該有不同的措辭
+- 保持專業和友善的語氣
+- 必須包含客服聯繫資訊
+
+**客服資訊：**
+${phone ? `電話：${phone}` : ''}
+${email ? `Email：${email}` : ''}
+${!phone && !email ? '（無具體聯繫方式）' : ''}
+
+**請生成一個自然、多樣化的回覆（不要包含任何標記或特殊符號）：**`;
+
+          const fallbackModel = genAI.getGenerativeModel({ 
+            model: 'gemini-2.0-flash-lite',
+            generationConfig: {
+              maxOutputTokens: 150,
+              temperature: 0.8, // 提高溫度以增加多樣性
+            },
+            safetySettings: SAFETY_SETTINGS
+          });
+
+          const fallbackResult = await fallbackModel.generateContent(fallbackPrompt);
+          const fallbackResponse = await fallbackResult.response;
+          aiMessage = fallbackResponse.text().trim();
+        } catch (fallbackError) {
+          console.warn('生成自然答覆失敗，使用預設格式:', fallbackError.message);
+          // 如果 AI 生成失敗，使用預設格式
+          if (phone && email) {
+            aiMessage = `很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎致電 ${phone} 或發送郵件至 ${email}，我們會盡快為您處理。`;
+          } else if (phone) {
+            aiMessage = `很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎致電 ${phone}，我們會盡快為您處理。`;
+          } else if (email) {
+            aiMessage = `很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎發送郵件至 ${email}，我們會盡快為您處理。`;
+          } else {
+            aiMessage = '很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎聯繫客服，我們會盡快為您處理。';
+          }
         }
-      } else {
-        answer = defaultMessage;
       }
+      
+      // 確保完全移除所有標記
+      answer = aiMessage.replace(/NO_RELEVANT_INFO/gi, '').trim();
     }
 
     return answer;
