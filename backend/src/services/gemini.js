@@ -128,17 +128,13 @@ ${userQuery}
 
     // 檢查回答是否包含「無相關資訊」標記
     if (answer.includes('NO_RELEVANT_INFO')) {
-      // 提取 AI 生成的訊息（標記後的部分），完全移除標記
-      let aiMessage = answer.split('NO_RELEVANT_INFO')[1]?.trim() || '';
+      // 先移除所有 NO_RELEVANT_INFO 標記（無論位置）
+      let aiMessage = answer.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
       
-      // 如果標記在開頭，取後面的內容
-      if (answer.startsWith('NO_RELEVANT_INFO')) {
-        aiMessage = answer.replace(/^NO_RELEVANT_INFO\s*/i, '').trim();
-      }
-      
-      // 如果 AI 生成的訊息不完整或不符合要求，使用 AI 重新生成自然答覆
+      // 如果移除標記後訊息為空或太短，或不符合要求，使用 AI 重新生成自然答覆
       if (!aiMessage || aiMessage.length < 20 || 
-          (!aiMessage.includes('確認') && !aiMessage.includes('稍候') && !aiMessage.includes('稍等'))) {
+          (!aiMessage.includes('確認') && !aiMessage.includes('稍候') && !aiMessage.includes('稍等') && 
+           !aiMessage.includes('無法') && !aiMessage.includes('需要'))) {
         
         // 從知識庫文本中提取客服資訊
         const phoneMatch = contextText.match(/客服電話[：:]\s*([0-9-]+)/);
@@ -159,13 +155,14 @@ ${userQuery}
 - 每次回答都應該有不同的措辭
 - 保持專業和友善的語氣
 - 必須包含客服聯繫資訊
+- **絕對不要包含任何標記、特殊符號或 NO_RELEVANT_INFO 字串**
 
 **客服資訊：**
 ${phone ? `電話：${phone}` : ''}
 ${email ? `Email：${email}` : ''}
 ${!phone && !email ? '（無具體聯繫方式）' : ''}
 
-**請生成一個自然、多樣化的回覆（不要包含任何標記或特殊符號）：**`;
+**請生成一個自然、多樣化的回覆（只返回回覆內容，不要包含任何標記、符號或說明文字）：**`;
 
           const fallbackModel = genAI.getGenerativeModel({ 
             model: 'gemini-2.0-flash-lite',
@@ -179,6 +176,9 @@ ${!phone && !email ? '（無具體聯繫方式）' : ''}
           const fallbackResult = await fallbackModel.generateContent(fallbackPrompt);
           const fallbackResponse = await fallbackResult.response;
           aiMessage = fallbackResponse.text().trim();
+          
+          // 再次確保移除任何可能的標記
+          aiMessage = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
         } catch (fallbackError) {
           console.warn('生成自然答覆失敗，使用預設格式:', fallbackError.message);
           // 如果 AI 生成失敗，使用預設格式
@@ -192,10 +192,14 @@ ${!phone && !email ? '（無具體聯繫方式）' : ''}
             aiMessage = '很抱歉，關於這個問題我們需要進一步確認，請您稍候。若您有緊急需求，歡迎聯繫客服，我們會盡快為您處理。';
           }
         }
+      } else {
+        // 如果 AI 生成的訊息符合要求，直接使用（已經移除了標記）
+        // 但再次確保沒有遺漏的標記
+        aiMessage = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
       }
       
-      // 確保完全移除所有標記
-      answer = aiMessage.replace(/NO_RELEVANT_INFO/gi, '').trim();
+      // 最終確保完全移除所有標記
+      answer = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
     }
 
     return answer;
