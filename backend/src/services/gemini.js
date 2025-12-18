@@ -176,8 +176,8 @@ ${userQuery}
 
     // 檢查回答是否包含「無相關資訊」標記（清理後再次檢查）
     if (answer.toLowerCase().includes('no_relevant_info') || answer.toLowerCase().includes('no relevant info')) {
-      // 先移除所有 NO_RELEVANT_INFO 標記（無論位置）
-      let aiMessage = answer.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
+      // 使用嚴格清理函數移除所有 NO_RELEVANT_INFO 標記（無論位置）
+      let aiMessage = sanitizeAnswer(answer);
       
       // 如果移除標記後訊息為空或太短，或不符合要求，使用 AI 重新生成自然答覆
       if (!aiMessage || aiMessage.length < 20 || 
