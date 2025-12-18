@@ -143,10 +143,12 @@ function ChatWidget() {
                 
                 if (data.type === 'chunk') {
                   fullContent += data.content;
-                  // 即時更新訊息內容
+                  // 前端也進行清理，確保移除 NO_RELEVANT_INFO 標記
+                  const cleanedContent = fullContent.replace(/NO[\s_-]*RELEVANT[\s_-]*INFO/gi, '').trim();
+                  // 即時更新訊息內容（使用清理後的內容）
                   setMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
-                      ? { ...msg, content: fullContent }
+                      ? { ...msg, content: cleanedContent }
                       : msg
                   ));
                 } else if (data.type === 'done') {
