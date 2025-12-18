@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { chunkText, retrieveRelevantChunks, calculateRelevanceScore } from '../utils/textProcessor.js';
-import { generateAnswer, generateGeneralChat, expandQueryWithAI } from './gemini.js';
+import { generateAnswer, generateGeneralChat, expandQueryWithAI, analyzeAndExpandKnowledgeBase } from './gemini.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -256,6 +256,100 @@ function generateFallbackAnswer(query, contextText) {
 
   // 最後的備援：返回預設訊息
   return '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服：0800-123-456。';
+}
+
+/**
+ * 非同步擴展知識庫（不阻塞回應）
+ * @param {string} query - 使用者問題
+ * @param {string} answer - AI 生成的回答
+ */
+async function expandKnowledgeBaseAsync(query, answer) {
+  try {
+    console.log('🔄 開始分析並擴展知識庫...');
+    
+    // 使用 AI 分析問題和回答，找出相關段落和擴展關鍵字
+    const analysis = await analyzeAndExpandKnowledgeBase(query, originalText, answer);
+    
+    if (!analysis || !analysis.matchedSection || !analysis.expandedKeywords) {
+      console.log('⚠️  無法分析出相關段落或關鍵字，跳過擴展');
+      return;
+    }
+
+    // 在知識庫中找到匹配的段落
+    const lines = originalText.split('\n');
+    let matchedIndex = -1;
+    let bestMatch = '';
+    let bestScore = 0;
+
+    // 尋找最匹配的段落
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (line.includes(analysis.matchedSection.trim().substring(0, 20))) {
+        // 找到匹配的行，檢查完整段落
+        let section = '';
+        let startIdx = Math.max(0, i - 2);
+        let endIdx = Math.min(lines.length, i + 10);
+        
+        for (let j = startIdx; j < endIdx; j++) {
+          section += lines[j] + '\n';
+        }
+        
+        const score = calculateRelevanceScore(analysis.matchedSection, section);
+        if (score > bestScore) {
+          bestScore = score;
+          matchedIndex = i;
+          bestMatch = section;
+        }
+      }
+    }
+
+    if (matchedIndex === -1) {
+      console.log('⚠️  無法在知識庫中找到匹配的段落，跳過擴展');
+      return;
+    }
+
+    // 將擴展關鍵字整合到匹配的段落
+    const expandedKeywords = analysis.expandedKeywords.split(/\s+/).filter(k => k.length > 0);
+    if (expandedKeywords.length === 0) {
+      console.log('⚠️  沒有有效的擴展關鍵字，跳過擴展');
+      return;
+    }
+
+    // 找到段落標題行（通常是數字開頭或包含冒號的行）
+    let sectionStart = matchedIndex;
+    for (let i = matchedIndex; i >= 0; i--) {
+      if (lines[i].match(/^\d+\.|^[A-Za-z].*[:：]/) || lines[i].trim().length === 0) {
+        sectionStart = i;
+        if (lines[i].trim().length > 0) break;
+      }
+    }
+
+    // 在段落標題後添加擴展關鍵字（作為註解或補充）
+    const titleLine = lines[sectionStart];
+    if (!titleLine.includes('（') && !titleLine.includes('(')) {
+      // 如果標題行沒有註解，添加擴展關鍵字
+      lines[sectionStart] = `${titleLine} （相關關鍵字：${expandedKeywords.join('、')}）`;
+    } else {
+      // 如果已有註解，在下一行添加
+      const insertIndex = sectionStart + 1;
+      if (insertIndex < lines.length && lines[insertIndex].trim().length > 0) {
+        // 在下一行前插入
+        lines.splice(insertIndex, 0, `   - 相關關鍵字：${expandedKeywords.join('、')}`);
+      } else {
+        // 如果下一行是空的，直接插入
+        lines[insertIndex] = `   - 相關關鍵字：${expandedKeywords.join('、')}`;
+      }
+    }
+
+    // 更新知識庫
+    const updatedText = lines.join('\n');
+    await updateKnowledgeBase(updatedText);
+    
+    console.log(`✅ 知識庫已擴展，新增關鍵字：${expandedKeywords.join('、')}`);
+  } catch (error) {
+    console.error('擴展知識庫時發生錯誤:', error);
+    // 不拋出錯誤，避免影響正常回答
+  }
 }
 
 /**
