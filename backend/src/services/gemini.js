@@ -305,28 +305,60 @@ ${!phone && !email ? '（無具體聯繫方式）' : ''}
  */
 async function generateAnswerStream(model, prompt, onChunk) {
   let fullText = '';
+  let buffer = ''; // 用於累積可能被分割的標記
   
   try {
     const result = await model.generateContentStream(prompt);
     
     for await (const chunk of result.stream) {
-      const chunkText = chunk.text();
+      let chunkText = chunk.text();
       if (chunkText) {
+        // 累積文字到 buffer 和 fullText
+        buffer += chunkText;
         fullText += chunkText;
-        onChunk(chunkText); // 即時回傳每個片段
+        
+        // 檢查 buffer 中是否有完整的 NO_RELEVANT_INFO 標記
+        // 使用較大的 buffer 窗口來匹配可能被分割的標記（檢查最後 50 個字元）
+        const checkWindow = buffer.slice(-50);
+        
+        if (checkWindow.match(/NO[\s_-]*RELEVANT[\s_-]*INFO/i)) {
+          // 找到標記，清理整個累積的文字
+          fullText = sanitizeAnswer(fullText);
+          // 只發送清理後的增量部分（避免重複發送）
+          const cleanedChunk = sanitizeAnswer(chunkText);
+          if (cleanedChunk) {
+            onChunk(cleanedChunk);
+          }
+          // 重置 buffer 為清理後的最後部分
+          buffer = fullText.slice(-50);
+        } else {
+          // 沒有標記，正常發送（但還是要清理以防萬一）
+          const cleanedChunk = sanitizeAnswer(chunkText);
+          if (cleanedChunk) {
+            onChunk(cleanedChunk);
+          }
+          
+          // 保持 buffer 在合理大小（只保留最後 50 個字元用於檢測）
+          if (buffer.length > 50) {
+            buffer = buffer.slice(-50);
+          }
+        }
       }
     }
     
+    // 最終清理完整文字（確保沒有遺漏）
+    fullText = sanitizeAnswer(fullText);
     return fullText;
   } catch (error) {
     // 如果串流失敗，嘗試一般模式
     console.warn('串流模式失敗，改用一般模式:', error.message);
     const result = await model.generateContent(prompt);
     const response = await result.response;
-    const text = response.text();
+    let text = response.text();
     
-    // 如果一般模式成功，一次性回傳
+    // 如果一般模式成功，清理後一次性回傳
     if (text) {
+      text = sanitizeAnswer(text);
       onChunk(text);
       return text;
     }
