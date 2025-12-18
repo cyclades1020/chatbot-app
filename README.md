@@ -75,12 +75,22 @@ cp backend/.env.example backend/.env
 
 編輯 `backend/.env`，填入您的 Gemini API Key：
 
+**本地開發環境設定：**
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
 PORT=3001
 NODE_ENV=development
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 ```
+
+**環境變數說明：**
+- `GEMINI_API_KEY`：您的 Gemini API Key（必填）
+- `PORT`：後端服務端口（預設 3001）
+- `NODE_ENV`：環境模式（development 或 production）
+- `ALLOWED_ORIGINS`：允許連接的前端網址（本地開發使用 localhost，生產環境使用實際網址）
+
+**生產環境設定：**
+如需部署到雲端（Railway、Vercel 等），請參考 `客戶說明文件.md` 中的部署章節，設定對應的環境變數。
 
 ### 3. 取得 Gemini API Key
 
