@@ -152,10 +152,11 @@ function ChatWidget() {
                       : msg
                   ));
                 } else if (data.type === 'done') {
-                  // 串流完成
+                  // 串流完成，最終清理一次確保沒有遺漏 NO_RELEVANT_INFO
+                  const finalCleaned = fullContent.replace(/NO[\s_-]*RELEVANT[\s_-]*INFO/gi, '').trim();
                   setMessages(prev => prev.map(msg => 
                     msg.id === assistantMessageId 
-                      ? { ...msg, isStreaming: false }
+                      ? { ...msg, content: finalCleaned, isStreaming: false }
                       : msg
                   ));
                 } else if (data.type === 'error') {
