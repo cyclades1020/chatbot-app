@@ -193,10 +193,11 @@ function ChatWidget() {
       const data = await normalResponse.json();
 
       if (data.success) {
-        // 更新助手訊息為完整回答
+        // 更新助手訊息為完整回答，並清理 NO_RELEVANT_INFO 標記
+        const cleanedAnswer = data.answer.replace(/NO[\s_-]*RELEVANT[\s_-]*INFO/gi, '').trim();
         setMessages(prev => prev.map(msg => 
           msg.id === assistantMessageId 
-            ? { ...msg, content: data.answer, isStreaming: false }
+            ? { ...msg, content: cleanedAnswer, isStreaming: false }
             : msg
         ));
       } else {
