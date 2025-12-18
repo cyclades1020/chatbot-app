@@ -37,6 +37,51 @@ const SAFETY_SETTINGS = [
 ];
 
 /**
+ * 嚴格清理回答中的 NO_RELEVANT_INFO 標記
+ * 使用多種正則表達式模式確保完全移除所有變體
+ * @param {string} answer - 原始回答
+ * @returns {string} 清理後的回答
+ */
+function sanitizeAnswer(answer) {
+  if (!answer || typeof answer !== 'string') {
+    return answer || '';
+  }
+  
+  let cleaned = answer;
+  
+  // 模式 1：標準格式（大小寫不敏感，下劃線）
+  cleaned = cleaned.replace(/NO_RELEVANT_INFO/gi, '');
+  
+  // 模式 2：帶空格變體（NO _ RELEVANT _ INFO）
+  cleaned = cleaned.replace(/NO\s*_\s*RELEVANT\s*_\s*INFO/gi, '');
+  
+  // 模式 3：空格分隔（NO RELEVANT INFO）
+  cleaned = cleaned.replace(/NO\s+RELEVANT\s+INFO/gi, '');
+  
+  // 模式 4：連字號變體（NO-RELEVANT-INFO）
+  cleaned = cleaned.replace(/NO-RELEVANT-INFO/gi, '');
+  
+  // 模式 5：下劃線前後可能有空格
+  cleaned = cleaned.replace(/\s*NO_RELEVANT_INFO\s*/gi, '');
+  
+  // 模式 6：部分匹配（開頭）
+  cleaned = cleaned.replace(/^NO_RELEVANT_INFO\s*/gim, '');
+  
+  // 模式 7：部分匹配（結尾）
+  cleaned = cleaned.replace(/\s*NO_RELEVANT_INFO$/gim, '');
+  
+  // 模式 8：可能被包在括號或標點中
+  cleaned = cleaned.replace(/[\(\（]?\s*NO_RELEVANT_INFO\s*[\)\）]?/gi, '');
+  
+  // 清理多餘的空格和換行
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n'); // 多個換行變為兩個
+  cleaned = cleaned.replace(/[ \t]{2,}/g, ' '); // 多個空格變為一個
+  cleaned = cleaned.trim();
+  
+  return cleaned;
+}
+
+/**
  * 使用 Gemini 生成回答（支援串流模式）
  * @param {string} userQuery - 使用者問題
  * @param {string} contextText - 從文本中檢索到的相關內容
@@ -125,9 +170,12 @@ ${userQuery}
     }
     
     let answer = response.text();
+    
+    // 立即清理所有可能的 NO_RELEVANT_INFO 標記
+    answer = sanitizeAnswer(answer);
 
-    // 檢查回答是否包含「無相關資訊」標記
-    if (answer.includes('NO_RELEVANT_INFO')) {
+    // 檢查回答是否包含「無相關資訊」標記（清理後再次檢查）
+    if (answer.toLowerCase().includes('no_relevant_info') || answer.toLowerCase().includes('no relevant info')) {
       // 先移除所有 NO_RELEVANT_INFO 標記（無論位置）
       let aiMessage = answer.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
       
@@ -177,8 +225,8 @@ ${!phone && !email ? '（無具體聯繫方式）' : ''}
           const fallbackResponse = await fallbackResult.response;
           aiMessage = fallbackResponse.text().trim();
           
-          // 再次確保移除任何可能的標記
-          aiMessage = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
+          // 使用嚴格清理函數移除任何可能的標記
+          aiMessage = sanitizeAnswer(aiMessage);
         } catch (fallbackError) {
           console.warn('生成自然答覆失敗，使用預設格式:', fallbackError.message);
           // 如果 AI 生成失敗，使用預設格式
@@ -193,15 +241,17 @@ ${!phone && !email ? '（無具體聯繫方式）' : ''}
           }
         }
       } else {
-        // 如果 AI 生成的訊息符合要求，直接使用（已經移除了標記）
-        // 但再次確保沒有遺漏的標記
-        aiMessage = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
+        // 如果 AI 生成的訊息符合要求，使用嚴格清理函數確保沒有遺漏的標記
+        aiMessage = sanitizeAnswer(aiMessage);
       }
       
       // 最終確保完全移除所有標記
-      answer = aiMessage.replace(/NO_RELEVANT_INFO\s*/gi, '').trim();
+      answer = sanitizeAnswer(aiMessage);
     }
 
+    // 最終防護：無論如何都要清理一次
+    answer = sanitizeAnswer(answer);
+    
     return answer;
   } catch (error) {
     // 詳細記錄錯誤資訊以便診斷
