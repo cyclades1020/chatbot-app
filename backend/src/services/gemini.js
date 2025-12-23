@@ -438,6 +438,146 @@ ${userQuery}
 }
 
 /**
+ * AI 預先驗證：判斷用戶問題是否能在知識庫中找到答案
+ * @param {string} userQuery - 用戶問題
+ * @param {string} knowledgeBaseText - 完整知識庫內容
+ * @returns {Promise<Object>} 驗證結果
+ * @returns {boolean} isRelevant - 是否相關
+ * @returns {number} relevanceScore - 相關性分數 (0-100)
+ * @returns {string} reasoning - AI 判斷理由
+ * @returns {string} queryIntent - 用戶詢問意圖分析
+ * @returns {string[]} suggestedSections - 建議的知識庫章節
+ * @returns {boolean} canAnswer - 是否能從知識庫回答
+ */
+export async function validateQueryRelevance(userQuery, knowledgeBaseText) {
+  if (!genAI) {
+    // 如果 API 未設定，返回預設值（視為相關，繼續現有流程）
+    console.warn('⚠️  Gemini API 未設定，跳過預先驗證');
+    return {
+      isRelevant: true,
+      relevanceScore: 70,
+      reasoning: 'API 未設定，跳過驗證',
+      queryIntent: userQuery,
+      suggestedSections: [],
+      canAnswer: true
+    };
+  }
+
+  try {
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.0-flash-lite',
+      generationConfig: {
+        maxOutputTokens: 300,
+        temperature: 0.3, // 降低溫度以提高判斷準確性
+      },
+      safetySettings: SAFETY_SETTINGS
+    });
+
+    const prompt = `你是一個智能客服系統的驗證模組。請分析用戶問題，判斷是否能從提供的知識庫中找到答案。
+
+**任務：**
+1. 分析用戶問題的重點和詢問原因
+2. 比對知識庫內容，評估相關性
+3. 判斷是否能從知識庫中提供答案
+
+**輸出格式（必須是有效的 JSON，不要包含任何其他文字）：**
+{
+  "isRelevant": boolean,
+  "relevanceScore": number (0-100),
+  "reasoning": "判斷理由（簡短說明）",
+  "queryIntent": "用戶詢問意圖分析",
+  "suggestedSections": ["建議的章節名稱"],
+  "canAnswer": boolean
+}
+
+**評分標準：**
+- 90-100：問題與知識庫高度相關，能直接找到答案
+- 70-89：問題與知識庫相關，可能需要重組資訊
+- 50-69：問題與知識庫部分相關，需要深度搜尋
+- 30-49：問題與知識庫低度相關，可能無法提供完整答案
+- 0-29：問題與知識庫無關，無法從知識庫回答
+
+**知識庫內容：**
+${knowledgeBaseText}
+
+**用戶問題：**
+${userQuery}
+
+**請分析並返回 JSON（只返回 JSON，不要包含任何其他文字）：**`;
+
+    const result = await retryWithBackoff(
+      async () => {
+        const result = await model.generateContent(prompt);
+        return result;
+      },
+      {
+        maxRetries: 2,
+        initialDelay: 2000,
+        maxDelay: 10000,
+        backoffMultiplier: 2
+      }
+    );
+
+    const response = await result.response;
+    
+    // 檢查是否因為安全設定被阻擋
+    if (response.candidates && response.candidates[0]?.finishReason === 'SAFETY') {
+      console.warn('⚠️  驗證回應被安全設定阻擋，使用預設值');
+      return {
+        isRelevant: true,
+        relevanceScore: 70,
+        reasoning: '安全設定阻擋，跳過驗證',
+        queryIntent: userQuery,
+        suggestedSections: [],
+        canAnswer: true
+      };
+    }
+    
+    let responseText = response.text();
+    
+    // 清理回應文字，提取 JSON
+    responseText = responseText.trim();
+    
+    // 嘗試提取 JSON（可能被 markdown 代碼塊包圍）
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      responseText = jsonMatch[0];
+    }
+    
+    // 解析 JSON
+    const validationResult = JSON.parse(responseText);
+    
+    // 驗證結果格式
+    if (typeof validationResult.relevanceScore !== 'number') {
+      validationResult.relevanceScore = validationResult.relevanceScore ? 70 : 30;
+    }
+    
+    // 確保分數在 0-100 範圍內
+    validationResult.relevanceScore = Math.max(0, Math.min(100, validationResult.relevanceScore));
+    
+    // 確保 isRelevant 和 canAnswer 是布林值
+    validationResult.isRelevant = validationResult.relevanceScore >= 50;
+    validationResult.canAnswer = validationResult.relevanceScore >= 50;
+    
+    console.log(`✅ AI 預先驗證完成：相關性分數 ${validationResult.relevanceScore}，${validationResult.isRelevant ? '相關' : '不相關'}`);
+    
+    return validationResult;
+  } catch (error) {
+    console.warn('⚠️  AI 預先驗證失敗，使用預設值（繼續現有流程）:', error.message);
+    
+    // 如果驗證失敗，返回預設值（視為相關，繼續現有流程）
+    return {
+      isRelevant: true,
+      relevanceScore: 70,
+      reasoning: `驗證失敗: ${error.message}`,
+      queryIntent: userQuery,
+      suggestedSections: [],
+      canAnswer: true
+    };
+  }
+}
+
+/**
  * 分析問題並找出知識庫中相關段落，生成擴展關鍵字
  * @param {string} query - 使用者問題
  * @param {string} knowledgeBaseText - 完整知識庫內容

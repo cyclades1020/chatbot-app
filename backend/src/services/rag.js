@@ -2,7 +2,7 @@ import fs from 'fs-extra';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { chunkText, retrieveRelevantChunks, calculateRelevanceScore } from '../utils/textProcessor.js';
-import { generateAnswer, generateGeneralChat, expandQueryWithAI, analyzeAndExpandKnowledgeBase } from './gemini.js';
+import { generateAnswer, generateGeneralChat, expandQueryWithAI, analyzeAndExpandKnowledgeBase, validateQueryRelevance } from './gemini.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -74,6 +74,43 @@ export function getKnowledgeBaseStatus() {
  * @param {string} query - 使用者問題
  * @returns {Promise<{answer: string, sources: Array}>}
  */
+/**
+ * 生成低相關性問題的快速回覆
+ * @param {Object} validationResult - 驗證結果
+ * @returns {string} 適當的回覆訊息
+ */
+function generateLowRelevanceResponse(validationResult) {
+  // 從知識庫中提取客服資訊
+  const phoneMatch = originalText.match(/客服電話[：:]\s*([0-9-]+)/);
+  const emailMatch = originalText.match(/電子郵件[：:]\s*([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
+  
+  const phone = phoneMatch ? phoneMatch[1] : null;
+  const email = emailMatch ? emailMatch[1] : null;
+  
+  // 根據驗證結果生成不同的回覆
+  if (validationResult.relevanceScore >= 30) {
+    // 低度相關：可能部分相關，但無法完整回答
+    if (phone && email) {
+      return `很抱歉，關於「${validationResult.queryIntent}」這個問題，我們需要進一步確認才能提供準確的資訊。若您有緊急需求，歡迎致電 ${phone} 或發送郵件至 ${email}，我們會盡快為您處理。`;
+    } else if (phone) {
+      return `很抱歉，關於「${validationResult.queryIntent}」這個問題，我們需要進一步確認才能提供準確的資訊。若您有緊急需求，歡迎致電 ${phone}，我們會盡快為您處理。`;
+    } else if (email) {
+      return `很抱歉，關於「${validationResult.queryIntent}」這個問題，我們需要進一步確認才能提供準確的資訊。若您有緊急需求，歡迎發送郵件至 ${email}，我們會盡快為您處理。`;
+    }
+  }
+  
+  // 完全不相關
+  if (phone && email) {
+    return `很抱歉，關於您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone} 或發送郵件至 ${email}。`;
+  } else if (phone) {
+    return `很抱歉，關於您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服電話 ${phone}。`;
+  } else if (email) {
+    return `很抱歉，關於您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請發送郵件至 ${email}。`;
+  }
+  
+  return '很抱歉，關於您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。';
+}
+
 export async function processQuery(query) {
   // 如果沒有知識庫內容，根據規則回應
   if (textChunks.length === 0) {
@@ -82,6 +119,36 @@ export async function processQuery(query) {
       answer: '不好意思，您的問題我們需要一些時間確認後再回覆您，請您稍等。如有緊急問題，請聯繫客服。',
       sources: [],
       mode: 'no_knowledge_base' // 標記為知識庫為空
+    };
+  }
+
+  // 【新增】階段 0：AI 預先驗證
+  let validationResult;
+  try {
+    validationResult = await validateQueryRelevance(query, originalText);
+    console.log(`🔍 AI 預先驗證結果：相關性分數 ${validationResult.relevanceScore}，${validationResult.isRelevant ? '相關' : '不相關'}`);
+  } catch (error) {
+    console.warn('⚠️  AI 預先驗證失敗，繼續現有流程:', error.message);
+    // 如果驗證失敗，使用預設值繼續流程
+    validationResult = {
+      isRelevant: true,
+      relevanceScore: 70,
+      reasoning: '驗證失敗，繼續流程',
+      queryIntent: query,
+      suggestedSections: [],
+      canAnswer: true
+    };
+  }
+
+  // 根據驗證結果決定策略
+  if (validationResult.relevanceScore < 50) {
+    // 低相關性：直接返回適當回覆，不進行後續檢索和生成
+    console.log(`⚠️  問題相關性較低（${validationResult.relevanceScore}），跳過檢索和生成`);
+    return {
+      answer: generateLowRelevanceResponse(validationResult),
+      sources: [],
+      mode: 'low_relevance',
+      validation: validationResult
     };
   }
 
@@ -98,19 +165,22 @@ export async function processQuery(query) {
   // 第二階段：使用擴展後的查詢進行檢索
   const relevantChunks = retrieveRelevantChunks(expandedQuery, textChunks, 5); // 增加檢索數量以提高準確度
 
-  // 決定使用哪種策略
+  // 決定使用哪種策略（根據驗證結果優化）
   let contextText;
   let useFullKnowledgeBase = false;
   
-  if (relevantChunks.length === 0) {
-    // 策略 1：如果精準檢索找不到，使用整個知識庫讓 AI 自行搜尋
-    // 這會消耗更多 token，但能提高找到答案的機率
-    // 知識庫目前約 1200 字元，加上 prompt 約 200 字元，總共約 1400 tokens（中文約 1 token = 1 字元）
+  if (validationResult.relevanceScore >= 70 && relevantChunks.length > 0) {
+    // 高相關性且有檢索結果：使用精準檢索（節省 token）
+    contextText = relevantChunks
+      .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
+      .join('\n\n---\n\n');
+  } else if (relevantChunks.length === 0) {
+    // 如果精準檢索找不到，使用整個知識庫讓 AI 自行搜尋
     console.log('⚠️  精準檢索未找到結果，使用整個知識庫進行 AI 搜尋');
     contextText = originalText;
     useFullKnowledgeBase = true;
   } else {
-    // 策略 2：使用精準檢索的結果（節省 token）
+    // 中相關性：使用檢索結果
     contextText = relevantChunks
       .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
       .join('\n\n---\n\n');
@@ -131,7 +201,8 @@ export async function processQuery(query) {
     return {
       answer,
       sources: [], // 不顯示參考資料來源
-      mode: useFullKnowledgeBase ? 'full_rag' : 'rag' // 標記為完整 RAG 或精準 RAG
+      mode: useFullKnowledgeBase ? 'full_rag' : 'rag', // 標記為完整 RAG 或精準 RAG
+      validation: validationResult // 包含驗證結果供調試
     };
   } catch (error) {
     console.error('處理查詢時發生錯誤:', error);
@@ -366,6 +437,32 @@ export async function processQueryStream(query, onChunk) {
     return;
   }
 
+  // 【新增】階段 0：AI 預先驗證
+  let validationResult;
+  try {
+    validationResult = await validateQueryRelevance(query, originalText);
+    console.log(`🔍 AI 預先驗證結果（串流模式）：相關性分數 ${validationResult.relevanceScore}，${validationResult.isRelevant ? '相關' : '不相關'}`);
+  } catch (error) {
+    console.warn('⚠️  AI 預先驗證失敗，繼續現有流程:', error.message);
+    validationResult = {
+      isRelevant: true,
+      relevanceScore: 70,
+      reasoning: '驗證失敗，繼續流程',
+      queryIntent: query,
+      suggestedSections: [],
+      canAnswer: true
+    };
+  }
+
+  // 根據驗證結果決定策略
+  if (validationResult.relevanceScore < 50) {
+    // 低相關性：直接返回適當回覆，不進行後續檢索和生成
+    console.log(`⚠️  問題相關性較低（${validationResult.relevanceScore}），跳過檢索和生成`);
+    const lowRelevanceResponse = generateLowRelevanceResponse(validationResult);
+    onChunk(lowRelevanceResponse);
+    return;
+  }
+
   // 使用 AI 語義理解進行檢索（兩階段檢索）
   let expandedQuery = query;
   try {
@@ -377,15 +474,21 @@ export async function processQueryStream(query, onChunk) {
   // 使用擴展後的查詢進行檢索
   const relevantChunks = retrieveRelevantChunks(expandedQuery, textChunks, 5);
 
-  // 決定使用哪種策略
+  // 決定使用哪種策略（根據驗證結果優化）
   let contextText;
   let useFullKnowledgeBase = false;
   
-  if (relevantChunks.length === 0) {
+  if (validationResult.relevanceScore >= 70 && relevantChunks.length > 0) {
+    // 高相關性且有檢索結果：使用精準檢索
+    contextText = relevantChunks
+      .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
+      .join('\n\n---\n\n');
+  } else if (relevantChunks.length === 0) {
     console.log('⚠️  精準檢索未找到結果，使用整個知識庫進行 AI 搜尋');
     contextText = originalText;
     useFullKnowledgeBase = true;
   } else {
+    // 中相關性：使用檢索結果
     contextText = relevantChunks
       .map((chunk, idx) => `[區塊 ${chunk.index + 1}]\n${chunk.text}`)
       .join('\n\n---\n\n');
